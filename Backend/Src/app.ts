@@ -1,8 +1,8 @@
 import "dotenv/config";
 import express, { type Express } from "express";
-import adminRoutes from "./routes/admin.routes.js";
-import childcareRoutes from "./routes/childcare.routes.js";
-import parentRoutes from "./routes/parent.routes.js";
+import adminRoutes from "./modules/Admin/presentation/Routes/admin.routes.js";
+import childcareRoutes from "./modules/childcare/presentation/Routes/childcare.routes.js";
+import parentRoutes from "./modules/parents/presentation/routes/Parent.routes.js";
 
 class App {
   private readonly app: Express;
