@@ -1,0 +1,30 @@
+
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "./Src",
+    "outDir": "./dist",
+
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true,
+
+    "sourceMap": true,
+    "declaration": false,
+    "declarationMap": false,
+
+    "noEmitOnError": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["Src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
