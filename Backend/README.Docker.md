@@ -1,9 +1,33 @@
 ### Building and running your application
 
-When you're ready, start your application by running:
-`docker compose up --build`.
+Put your MongoDB and SMTP settings together in the existing `Backend/.env` file, then run `docker compose up --build`. Do not commit this file or share its credentials.
 
-Your application will be available at http://localhost:5000.
+The `.env` file should include:
+
+```env
+PORT=3000
+MONGODB_URI=your-mongodb-connection-string
+SMTP_HOST=your-smtp-host
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-username
+SMTP_PASS=your-smtp-password
+EMAIL_FROM=your-sender-email
+```
+
+Your application will be available at http://localhost:3000.
+
+### Parent registration and email verification
+
+The registration endpoints are mounted under `/api/parent`:
+
+1. `POST /register` with `{ "fullName", "email", "phoneNumber" }` starts a pending registration.
+2. `POST /register/send-otp` with `{ "email" }` sends a six-digit code to that email.
+3. `POST /register/verify-otp` with `{ "email", "otp", "password" }` verifies the code, marks the email as verified, and saves a scrypt password hash.
+
+OTP hashes are kept only in server memory for five minutes; they are not stored in MongoDB or browser storage. This means outstanding codes are lost on a server restart, and a multi-instance deployment needs a shared session/cache store.
+
+Set the SMTP values in the same `.env` file to enable email delivery.
 
 ### Deploying your application to the cloud
 

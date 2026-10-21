@@ -1,25 +1,40 @@
-
 import { Router } from "express";
-
-import { ParentController } from "../controllers/parent.controller.js";
 import { RegisterParentDetailsUseCase } from "../../application/use-cases/register-parent-details.usecase.js";
+import { SendRegistrationOtpUseCase } from "../../application/use-cases/send-registration-otp.usecase.js";
+import { VerifyRegistrationOtpUseCase } from "../../application/use-cases/verify-registration-otp.usecase.js";
+import { RegistrationEmailServiceImpl } from "../../infrastructure/Services/registration-email.service.js";
+import { RegistrationOtpStoreImpl } from "../../infrastructure/Services/registration-otp.store.impl.js";
 import { ParentRegistrationRepositoryImpl } from "../../infrastructure/repositories/parent-registration.repository.impl.js";
+import { ParentController } from "../controllers/parent.controller.js";
+import { SendOtpController } from "../controllers/send-otp.controller.js";
+import { VerifyOtpController } from "../controllers/verify-otp.controller.js";
 
 const parentRoutes = Router();
+const parentRegistrationRepository = new ParentRegistrationRepositoryImpl();
+const registrationOtpStore = new RegistrationOtpStoreImpl();
+const registrationEmailService = new RegistrationEmailServiceImpl();
 
+const parentController = new ParentController(
+  new RegisterParentDetailsUseCase(parentRegistrationRepository),
+);
 
-const parentRegistrationRepository =
-  new ParentRegistrationRepositoryImpl();
+const sendOtpController = new SendOtpController(
+  new SendRegistrationOtpUseCase(
+    parentRegistrationRepository,
+    registrationOtpStore,
+    registrationEmailService,
+  ),
+);
 
-
-const registerParentDetailsUseCase =
-  new RegisterParentDetailsUseCase(parentRegistrationRepository);
-
-
-const parentController =
-  new ParentController(registerParentDetailsUseCase);
-
+const verifyOtpController = new VerifyOtpController(
+  new VerifyRegistrationOtpUseCase(
+    parentRegistrationRepository,
+    registrationOtpStore,
+  ),
+);
 
 parentRoutes.post("/register", parentController.register);
+parentRoutes.post("/register/send-otp", sendOtpController.sendOtp);
+parentRoutes.post("/register/verify-otp", verifyOtpController.verifyOtp);
 
 export default parentRoutes;

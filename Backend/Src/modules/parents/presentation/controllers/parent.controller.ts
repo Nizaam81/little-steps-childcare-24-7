@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import type { RegisterParentDetailsUseCase } from "../../application/use-cases/register-parent-details.usecase.js";
+import { parentDetailsSchema } from "../validators/parent-signup.validation.js";
 
 export class ParentController {
   constructor(
@@ -8,18 +9,31 @@ export class ParentController {
 
   register = async (req: Request, res: Response) => {
     try {
-      const { fullName, email, phoneNumber } = req.body;
+      const parsed = parentDetailsSchema.safeParse(req.body);
+      console.log(parsed)
 
-      const result = await this.registerDetails.execute({
-        fullName,
-        email,
-        phoneNumber,
-      });
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Please provide valid registration details.",
+          errors: parsed.error.issues,
+        });
+      }
 
+      const result = await this.registerDetails.execute(parsed.data);
       return res.status(201).json(result);
-    } catch {
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.message === "EMAIL_ALREADY_REGISTERED"
+      ) {
+        return res.status(409).json({
+          message: "This email is already registered.",
+        });
+      }
+
+      console.error("Parent registration failed:", error);
       return res.status(500).json({
-        message: "Something went wrong",
+        message: "Unable to start registration right now.",
       });
     }
   };

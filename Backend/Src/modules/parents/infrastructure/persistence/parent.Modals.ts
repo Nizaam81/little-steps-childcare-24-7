@@ -27,9 +27,13 @@ const parentRegistrationSchema = new Schema(
       default: false,
     },
 
+    passwordHash: {
+      type: String,
+      select: false,
+    },
+
     expiresAt: {
       type: Date,
-      required: true,
     },
   },
   {

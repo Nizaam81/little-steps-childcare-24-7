@@ -6,7 +6,6 @@ export class DatabaseConnection {
 
   async connect(): Promise<void> {
     const uri = this.uri || process.env.MONGODB_URI;
-    console.log(uri);
 
     if (!uri) {
       throw new Error("MONGODB_URI is not set in the environment");

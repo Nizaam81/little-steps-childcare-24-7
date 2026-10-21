@@ -8,6 +8,10 @@ export class ParentRegistrationRepositoryImpl
   async emailExists(email: string): Promise<boolean> {
     const registration = await ParentRegistrationModel.exists({
       email: email.trim().toLowerCase(),
+      $or: [
+        { emailVerified: true },
+        { expiresAt: { $gt: new Date() } },
+      ],
     });
 
     return registration !== null;
@@ -29,5 +33,49 @@ export class ParentRegistrationRepositoryImpl
     return {
       id: registration.id,
     };
+  }
+
+  async findPendingRegistrationByEmail(
+    email: string,
+  ): Promise<{ id: string; email: string } | null> {
+    const registration = await ParentRegistrationModel.findOne({
+      email: email.trim().toLowerCase(),
+      emailVerified: false,
+      expiresAt: { $gt: new Date() },
+    }).select("_id email");
+
+    if (!registration) {
+      return null;
+    }
+
+    return {
+      id: registration.id,
+      email: registration.email,
+    };
+  }
+
+  async completeRegistration(data: {
+    registrationId: string;
+    passwordHash: string;
+  }): Promise<{ id: string } | null> {
+    const registration = await ParentRegistrationModel.findOneAndUpdate(
+      {
+        _id: data.registrationId,
+        emailVerified: false,
+        expiresAt: { $gt: new Date() },
+      },
+      {
+        $set: {
+          emailVerified: true,
+          passwordHash: data.passwordHash,
+        },
+        $unset: {
+          expiresAt: "",
+        },
+      },
+      { returnDocument: "after" },
+    ).select("_id");
+
+    return registration ? { id: registration.id } : null;
   }
 }
