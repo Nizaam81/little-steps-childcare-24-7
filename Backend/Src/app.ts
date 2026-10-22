@@ -1,4 +1,5 @@
 import "dotenv/config";
+import cors from "cors";
 import express, { type Express } from "express";
 import adminRoutes from "./modules/Admin/presentation/Routes/admin.routes.js";
 import childcareRoutes from "./modules/childcare/presentation/Routes/childcare.routes.js";
@@ -14,6 +15,12 @@ class App {
   }
 
   private setupMiddlewares(): void {
+    this.app.use(
+      cors({
+        origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
+        credentials: true,
+      }),
+    );
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
   }

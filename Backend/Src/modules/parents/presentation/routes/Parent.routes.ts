@@ -10,8 +10,11 @@ import { SendOtpController } from "../controllers/send-otp.controller.js";
 import { VerifyOtpController } from "../controllers/verify-otp.controller.js";
 
 const parentRoutes = Router();
+
 const parentRegistrationRepository = new ParentRegistrationRepositoryImpl();
+
 const registrationOtpStore = new RegistrationOtpStoreImpl();
+
 const registrationEmailService = new RegistrationEmailServiceImpl();
 
 const parentController = new ParentController(

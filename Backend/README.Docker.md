@@ -6,6 +6,7 @@ The `.env` file should include:
 
 ```env
 PORT=3000
+FRONTEND_URL=http://localhost:5173
 MONGODB_URI=your-mongodb-connection-string
 SMTP_HOST=your-smtp-host
 SMTP_PORT=587
