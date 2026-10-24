@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import LandingPage from "./Landing_page";
+import ParentLogin from "./features/auth/Parent-Login";
 import ParentRegistration from "./features/auth/ParentRegistration";
 import InformationPage from "./features/pages/InformationPage";
 
@@ -8,14 +9,15 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/register" element={<ParentRegistration />} />
+      <Route path="/login" element={<ParentLogin />} />
       <Route
-        path="/login"
+        path="/parent/dashboard"
         element={
           <InformationPage
-            title="Family login"
-            description="Family sign-in will be available when the authentication endpoint is connected."
-            actionLabel="Create an account"
-            actionTo="/register"
+            title="Welcome to your parent dashboard"
+            description="You are signed in. Parent dashboard features are coming soon."
+            actionLabel="Back to home"
+            actionTo="/"
           />
         }
       />
@@ -54,7 +56,7 @@ export default function App() {
         }
       />
       <Route
-        path="/provider/login"
+        path="  "
         element={
           <InformationPage
             title="Provider login"

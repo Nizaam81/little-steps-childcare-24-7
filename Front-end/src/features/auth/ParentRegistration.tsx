@@ -1,9 +1,9 @@
-import axios from "axios";
 import { useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import apiClient from "../../config/axios";
+import { getApiErrorMessage } from "../../utils/api-error-message";
 import EmailVerificationStep from "./EmailVerificationStep";
 import ParentDetailsStep from "./ParentDetailsStep";
 import PasswordStep from "./PasswordStep";
@@ -17,22 +17,9 @@ async function apiPost<T>(
     const response = await apiClient.post<T>(endpoint, body);
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const data: unknown = error.response?.data;
-      if (data && typeof data === "object") {
-        const apiError = data as { message?: unknown; error?: unknown };
-        if (typeof apiError.message === "string" && apiError.message) {
-          throw new Error(apiError.message);
-        }
-        if (typeof apiError.error === "string" && apiError.error) {
-          throw new Error(apiError.error);
-        }
-      }
-
-      throw new Error(error.message || "Something went wrong. Please try again.");
-    }
-
-    throw error;
+    throw new Error(
+      getApiErrorMessage(error, "Something went wrong. Please try again."),
+    );
   }
 }
 

@@ -14,6 +14,8 @@ SMTP_SECURE=false
 SMTP_USER=your-smtp-username
 SMTP_PASS=your-smtp-password
 EMAIL_FROM=your-sender-email
+JWT_ACCESS_SECRET=replace-with-a-unique-random-access-secret-of-at-least-32-characters
+JWT_REFRESH_SECRET=replace-with-a-unique-random-refresh-secret-of-at-least-32-characters
 ```
 
 Your application will be available at http://localhost:3000.
@@ -29,6 +31,21 @@ The registration endpoints are mounted under `/api/parent`:
 OTP hashes are kept only in server memory for five minutes; they are not stored in MongoDB or browser storage. This means outstanding codes are lost on a server restart, and a multi-instance deployment needs a shared session/cache store.
 
 Set the SMTP values in the same `.env` file to enable email delivery.
+
+### Parent login
+
+`POST /api/parent/login` accepts `{ "email", "password", "rememberMe" }`.
+The email is normalized and validated, and `rememberMe` is optional (defaults
+to `false`). Successful login sets the signed JWT in the HttpOnly
+`parent_session` cookie; the token is not returned in the response body. The
+cookie expires with the token: 12 hours by default or 30 days when
+`rememberMe` is `true`.
+
+Set `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` in `.env` to separate, unique,
+randomly generated secrets of at least 32 characters. The current login flow
+uses `JWT_ACCESS_SECRET` to sign the parent session JWT; refresh-token issuance
+is not implemented yet. Keep the access secret private and stable across app
+instances; changing it invalidates existing parent session tokens.
 
 ### Deploying your application to the cloud
 

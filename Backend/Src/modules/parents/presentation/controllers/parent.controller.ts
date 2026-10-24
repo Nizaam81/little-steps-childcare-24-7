@@ -10,7 +10,6 @@ export class ParentController {
   register = async (req: Request, res: Response) => {
     try {
       const parsed = parentDetailsSchema.safeParse(req.body);
-      console.log(parsed)
 
       if (!parsed.success) {
         return res.status(400).json({

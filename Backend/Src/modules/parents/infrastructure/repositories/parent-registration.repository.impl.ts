@@ -78,4 +78,27 @@ export class ParentRegistrationRepositoryImpl
 
     return registration ? { id: registration.id } : null;
   }
+
+  async findVerifiedByEmail(email: string): Promise<{
+    id: string;
+    fullName: string;
+    email: string;
+    passwordHash: string;
+  } | null> {
+    const registration = await ParentRegistrationModel.findOne({
+      email: email.trim().toLowerCase(),
+      emailVerified: true,
+    }).select("+passwordHash _id fullName email");
+
+    if (!registration?.passwordHash) {
+      return null;
+    }
+
+    return {
+      id: registration.id,
+      fullName: registration.fullName,
+      email: registration.email,
+      passwordHash: registration.passwordHash,
+    };
+  }
 }

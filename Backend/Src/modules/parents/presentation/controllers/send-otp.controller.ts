@@ -15,6 +15,7 @@ export class SendOtpController {
       if (!parsed.success) {
         return res.status(400).json({
           message: "A valid email is required.",
+          errors: parsed.error.issues,
         });
       }
 

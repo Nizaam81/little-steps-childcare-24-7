@@ -15,4 +15,11 @@ export interface ParentRegistrationRepository {
     registrationId: string;
     passwordHash: string;
   }): Promise<{ id: string } | null>;
+
+  findVerifiedByEmail(email: string): Promise<{
+    id: string;
+    fullName: string;
+    email: string;
+    passwordHash: string;
+  } | null>;
 }

@@ -31,4 +31,12 @@ export const verifyRegistrationOtpSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+export const parentLoginSchema = z.object({
+  email: z.string().trim().toLowerCase().pipe(
+    z.email("Please enter a valid email address"),
+  ),
+  password: z.string().min(1, "Password is required"),
+  rememberMe: z.boolean().default(false),
+});
+
 export type ParentDetailsInput = z.infer<typeof parentDetailsSchema>;
