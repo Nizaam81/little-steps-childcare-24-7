@@ -17,6 +17,11 @@ services:
       NODE_ENV: production
     ports:
       - 3000:3000
+    volumes:
+      - provider-documents:/usr/src/app/storage/provider-applications
+
+volumes:
+  provider-documents:
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to

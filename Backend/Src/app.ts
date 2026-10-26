@@ -17,7 +17,27 @@ class App {
   private setupMiddlewares(): void {
     this.app.use(
       cors({
-        origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
+        origin: (origin, callback) => {
+          const configuredOrigins = (
+            process.env.FRONTEND_URL ?? "http://localhost:5173"
+          )
+            .split(",")
+            .map((value) => value.trim());
+          const isLocalDevelopmentOrigin =
+            process.env.NODE_ENV !== "production" &&
+            /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin ?? "");
+
+          if (
+            !origin ||
+            configuredOrigins.includes(origin) ||
+            isLocalDevelopmentOrigin
+          ) {
+            callback(null, true);
+            return;
+          }
+
+          callback(new Error("Origin not allowed by CORS"));
+        },
         credentials: true,
       }),
     );
@@ -28,6 +48,7 @@ class App {
   private setupRoutes(): void {
     this.mountParentRoutes();
     this.mountChildcareRoutes();
+    this.mountProviderRoutes();
     this.mountAdminRoutes();
 
    
@@ -43,6 +64,10 @@ class App {
 
   private mountAdminRoutes(): void {
     this.app.use("/api/admin", adminRoutes);
+  }
+
+  private mountProviderRoutes(): void {
+    this.app.use("/api/providers", childcareRoutes);
   }
 
   get instance(): Express {

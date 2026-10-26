@@ -1,22 +1,6 @@
-import { randomBytes, scrypt } from "node:crypto";
 import type { ParentRegistrationRepository } from "../../domain/repositories/parent-registration.repository.js";
 import type { RegistrationOtpStore } from "../services/registration-otp.store.js";
-
-const hashPassword = async (password: string): Promise<string> => {
-  const salt = randomBytes(16);
-  const hash = await new Promise<Buffer>((resolve, reject) => {
-    scrypt(password, salt, 64, (error, derivedKey) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve(derivedKey);
-    });
-  });
-
-  return `scrypt$${salt.toString("hex")}$${hash.toString("hex")}`;
-};
+import { hashPassword } from "../../../../shared/utils/password.js";
 
 export class VerifyRegistrationOtpUseCase {
   constructor(

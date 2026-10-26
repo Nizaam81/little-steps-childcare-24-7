@@ -1,3 +1,7 @@
 export interface RegistrationEmailService {
-  sendOtp(email: string, otp: string): Promise<void>;
+  sendOtp(
+    email: string,
+    otp: string,
+    purpose?: "parent" | "childcare_owner",
+  ): Promise<void>;
 }

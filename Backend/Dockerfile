@@ -23,6 +23,10 @@ COPY package.json package-lock.json ./
 # Leverage a cache mount to /root/.npm to speed up subsequent builds.
 RUN --mount=type=cache,target=/root/.npm npm ci
 
+# Keep uploaded application documents writable by the non-root runtime user.
+RUN mkdir -p /usr/src/app/storage/provider-applications \
+    && chown -R node:node /usr/src/app/storage
+
 # Run the application as a non-root user.
 USER node
 

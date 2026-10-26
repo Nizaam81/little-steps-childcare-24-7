@@ -28,7 +28,7 @@ export class SendRegistrationOtpUseCase {
     const otp = randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    await this.emailService.sendOtp(email, otp);
+    await this.emailService.sendOtp(email, otp, "parent");
 
     this.otpStore.save({
       email,

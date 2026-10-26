@@ -1,8 +1,13 @@
+import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 import LandingPage from "./Landing_page";
 import ParentLogin from "./features/auth/Parent-Login";
 import ParentRegistration from "./features/auth/ParentRegistration";
 import InformationPage from "./features/pages/InformationPage";
+
+const ProviderRegistration = lazy(
+  () => import("./features/provider-registration/ProviderRegistration"),
+);
 
 export default function App() {
   return (
@@ -47,12 +52,15 @@ export default function App() {
       <Route
         path="/provider/register"
         element={
-          <InformationPage
-            title="Become a provider"
-            description="Provider registration will be available when provider onboarding is connected."
-            actionLabel="Back to home"
-            actionTo="/"
-          />
+          <Suspense
+            fallback={
+              <main className="flex min-h-screen items-center justify-center bg-[#f5f8f6] text-sm font-medium text-slate-600">
+                Loading provider registration...
+              </main>
+            }
+          >
+            <ProviderRegistration />
+          </Suspense>
         }
       />
       <Route
