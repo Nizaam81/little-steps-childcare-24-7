@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 import LandingPage from "./Landing_page";
+import AdminLogin from "./features/admin/AdminLogin";
 import ParentLogin from "./features/auth/Parent-Login";
 import ParentRegistration from "./features/auth/ParentRegistration";
 import InformationPage from "./features/pages/InformationPage";
@@ -15,6 +16,7 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/register" element={<ParentRegistration />} />
       <Route path="/login" element={<ParentLogin />} />
+      <Route path="/admin/login" element={<AdminLogin />} />
       <Route
         path="/parent/dashboard"
         element={

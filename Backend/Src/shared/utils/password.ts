@@ -1,3 +1,4 @@
+import { compare as compareBcrypt } from "bcryptjs";
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 
 export const DUMMY_PASSWORD_HASH =
@@ -25,6 +26,14 @@ export const verifyPassword = async (
   password: string,
   encodedHash: string,
 ): Promise<boolean> => {
+  if (encodedHash.startsWith("$2")) {
+    if (!/^\$2[aby]\$(0[4-9]|[12]\d|3[01])\$[./A-Za-z0-9]{53}$/.test(encodedHash)) {
+      throw new Error("INVALID_STORED_PASSWORD_HASH");
+    }
+
+    return compareBcrypt(password, encodedHash);
+  }
+
   const [algorithm, saltHex, hashHex] = encodedHash.split("$");
   if (
     algorithm !== "scrypt" ||
