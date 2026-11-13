@@ -242,6 +242,10 @@ export default function Login() {
                     className="min-w-0 flex-1 rounded-xl bg-transparent px-3.5 py-3.5 text-sm text-[#26384b] outline-none placeholder:text-[#a1adb5]"
                     {...register("email", {
                       required: "Email address is required.",
+                      maxLength: {
+                        value: 254,
+                        message: "Email address must be 254 characters or fewer.",
+                      },
                       pattern: {
                         value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                         message: "Please enter a valid email address.",

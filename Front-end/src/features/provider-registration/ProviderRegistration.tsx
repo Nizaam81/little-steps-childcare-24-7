@@ -169,17 +169,23 @@ export default function ProviderRegistration() {
       });
       isValid = false;
     }
-    if (values.careTypes.includes("Daily care") && values.dailyPrice === "") {
+    if (
+      values.careTypes.includes("Daily care") &&
+      (values.dailyPrice === "" || values.dailyPrice <= 0)
+    ) {
       methods.setError("dailyPrice", {
         type: "manual",
-        message: "Enter your daily rate for daily care.",
+        message: "Enter a daily rate above zero for daily care.",
       });
       isValid = false;
     }
-    if (values.careTypes.includes("Monthly care") && values.monthlyPrice === "") {
+    if (
+      values.careTypes.includes("Monthly care") &&
+      (values.monthlyPrice === "" || values.monthlyPrice <= 0)
+    ) {
       methods.setError("monthlyPrice", {
         type: "manual",
-        message: "Enter your monthly rate for monthly care.",
+        message: "Enter a monthly rate above zero for monthly care.",
       });
       isValid = false;
     }
@@ -265,12 +271,20 @@ export default function ProviderRegistration() {
               Little Steps
             </span>
           </Link>
-          <Link
-            to="/"
-            className="text-sm font-semibold text-slate-500 transition hover:text-teal-800"
-          >
-            Back to home
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/provider/login"
+              className="rounded-lg px-2 py-2 text-xs font-semibold text-teal-800 transition hover:bg-teal-50 sm:px-3 sm:text-sm"
+            >
+              Already applied? Check status
+            </Link>
+            <Link
+              to="/"
+              className="hidden text-sm font-semibold text-slate-500 transition hover:text-teal-800 sm:inline"
+            >
+              Back to home
+            </Link>
+          </div>
         </header>
 
         <div className="grid overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_24px_80px_-35px_rgba(24,70,58,0.28)] lg:grid-cols-[0.76fr_1.24fr]">

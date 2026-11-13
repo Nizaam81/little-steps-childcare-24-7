@@ -1,9 +1,9 @@
 export interface ProviderRegistrationDocument {
-  storedName: string;
+  url: string;
+  publicId: string;
   originalName: string;
   mimeType: string;
   size: number;
-  path: string;
 }
 
 export interface ProviderRegistrationData {
@@ -52,8 +52,22 @@ export interface ProviderRegistrationReview {
   reviewNotes: string;
   createdAt: Date;
   updatedAt: Date;
-  tradeLicense: Omit<ProviderRegistrationDocument, "path">;
-  supportingDocuments: Array<Omit<ProviderRegistrationDocument, "path">>;
+  tradeLicense: ProviderRegistrationDocument;
+  supportingDocuments: ProviderRegistrationDocument[];
+}
+
+export interface ApprovedProviderCentre {
+  applicationId: string;
+  centreName: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPhone: string;
+  address: string;
+  district: string;
+  centrePhone: string;
+  capacity: number;
+  isActive: boolean;
+  approvedAt: Date;
 }
 
 export interface ProviderRegistrationRepository {
@@ -73,6 +87,19 @@ export interface ProviderRegistrationRepository {
   }): Promise<{ id: string; status: ProviderRegistrationStatus } | null>;
   findDocument(
     applicationId: string,
-    storedName: string,
+    publicId: string,
   ): Promise<ProviderRegistrationDocument | null>;
+  findForLogin(email: string): Promise<{
+    id: string;
+    ownerName: string;
+    ownerEmail: string;
+    centreName: string;
+    passwordHash: string;
+    status: ProviderRegistrationStatus;
+    reviewNotes: string;
+    isActive: boolean;
+  } | null>;
+  listApprovedCentres(): Promise<ApprovedProviderCentre[]>;
+  setCentreActive(applicationId: string, isActive: boolean): Promise<boolean>;
+  deleteApprovedCentre(applicationId: string): Promise<boolean>;
 }

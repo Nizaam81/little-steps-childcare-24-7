@@ -22,4 +22,17 @@ export interface ParentRegistrationRepository {
     email: string;
     passwordHash: string;
   } | null>;
+
+  listVerifiedParents(): Promise<{
+    parentId: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    isActive: boolean;
+    createdAt: Date;
+  }[]>;
+
+  setParentActive(parentId: string, isActive: boolean): Promise<boolean>;
+
+  deleteParent(parentId: string): Promise<boolean>;
 }

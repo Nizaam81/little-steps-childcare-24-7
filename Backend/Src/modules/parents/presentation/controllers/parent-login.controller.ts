@@ -45,4 +45,10 @@ export class ParentLoginController {
       });
     }
   };
+
+  logout = (_req: Request, res: Response) => {
+    return res.status(200).json({
+      message: "Logged out successfully. Remove the access token from the client.",
+    });
+  };
 }

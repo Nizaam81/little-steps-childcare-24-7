@@ -87,3 +87,83 @@ The UI displays the admin-verification status only after receiving that
 successful response. The backend should validate all submitted data, securely
 hash the owner password, store uploaded files safely, and enforce HTTPS in
 production. Configure `VITE_API_BASE_URL` to point to the backend API origin.
+
+## Parent dashboard
+
+The parent dashboard is available at `/parent/dashboard` after a successful
+sign-in. Run the frontend from `Front-end` with `npm run dev` (usually
+`http://localhost:5173`) and the backend with `docker compose up --build` from
+`Backend` (usually `http://localhost:3000`). Set `VITE_API_BASE_URL` to the
+backend origin when it is not `http://localhost:3000`.
+
+Parent app routes:
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Landing page |
+| `/register` | Parent registration |
+| `/login` | Parent sign-in |
+| `/parent/dashboard` | Parent dashboard |
+| `/contact` | Contact page (replace demo contact details before launch) |
+| `/privacy` | Privacy information |
+| `/terms` | Draft terms and conditions |
+
+Parent sign-in navigates to `/parent/dashboard` after a successful login.
+The dashboard footer links to Contact, Privacy, Terms & Conditions, and Trust
+& Safety. Contact email/phone are visibly marked placeholders; replace them
+in `src/config/siteContact.ts` before launch. The Privacy and Terms pages are
+preview drafts and need review against the final production service.
+
+From the repository root, start the backend and frontend in separate terminals:
+
+```powershell
+Set-Location .\Backend
+docker compose up --build
+```
+
+```powershell
+Set-Location .\Front-end
+npm install
+npm run dev
+```
+
+The currently implemented parent API endpoint is:
+
+```text
+POST {VITE_API_BASE_URL}/api/parent/login
+{ "email": "parent@example.com", "password": "your-password", "rememberMe": false }
+```
+
+The dashboard's childcare listings, favorites, bookings, notifications,
+subscription, camera-access requests, caregiver recommendations, and payment
+history are sample data and browser-session interactions only. The browser
+location is requested with the user's permission and stays in the frontend.
+The dashboard keeps the discovery and summary view uncluttered; open
+**Settings & history** from the profile menu to access the detailed activity
+and feature previews. **Edit profile** opens the parent contact form. Profile
+changes are kept in the current page session only until a profile API is added.
+Camera feeds, recommendation services, and payment/refund processing are not
+connected; the demo UI does not start a stream, send a provider request, charge
+a card, or issue a refund. The backend does not currently implement dashboard
+endpoints for these features.
+
+Suggested endpoints to implement when these backend features are ready:
+
+```text
+GET    /api/childcare/centers?search=&ageGroup=&careTiming=&available24=&maxMonthlyPrice=&sort=
+GET    /api/parent/favorites
+PUT    /api/parent/favorites/:centerId
+DELETE /api/parent/favorites/:centerId
+GET    /api/parent/bookings
+POST   /api/parent/bookings             { "centerId": "...", "plan": "...", "startDate": "YYYY-MM-DD" }
+GET    /api/parent/notifications
+GET    /api/parent/subscription
+GET    /api/parent/camera-access
+POST   /api/parent/camera-access             { "centerId": "...", "cameraId": "..." }
+GET    /api/parent/caregiver-recommendations?ageGroup=&careStyle=
+GET    /api/parent/payments
+POST   /api/parent/payments/:paymentId/refund
+```
+
+These suggested endpoints are not implemented yet; the frontend deliberately
+does not call them.

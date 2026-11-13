@@ -41,6 +41,21 @@ img {
   display: block;
   max-width: 100%;
 }
+
+.admin-sidebar {
+  transform: translateX(-100%);
+}
+
+.admin-sidebar[data-open="true"] {
+  transform: translateX(0);
+}
+
+@media (min-width: 64rem) {
+  .admin-sidebar {
+    transform: translateX(0);
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

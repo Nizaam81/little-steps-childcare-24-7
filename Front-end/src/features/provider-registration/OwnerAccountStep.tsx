@@ -69,6 +69,10 @@ export default function OwnerAccountStep({
               className={`${registrationInputClass(!!errors.ownerEmail)} sm:flex-1`}
               {...register("ownerEmail", {
                 required: "Enter an email address.",
+                maxLength: {
+                  value: 254,
+                  message: "Email address must be 254 characters or fewer.",
+                },
                 pattern: {
                   value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                   message: "Enter a valid email address.",
@@ -163,6 +167,12 @@ export default function OwnerAccountStep({
                 {...register("ownerName", {
                   required: "Enter the owner's name.",
                   minLength: { value: 2, message: "Enter at least 2 characters." },
+                  maxLength: {
+                    value: 100,
+                    message: "Name must be 100 characters or fewer.",
+                  },
+                  validate: (value) =>
+                    value.trim().length >= 2 || "Enter a valid name.",
                 })}
               />
             </FormField>
@@ -204,6 +214,10 @@ export default function OwnerAccountStep({
                   className={`${registrationInputClass(!!errors.password)} pr-12`}
                   {...register("password", {
                     required: "Create a password.",
+                    maxLength: {
+                      value: 128,
+                      message: "Password must be 128 characters or fewer.",
+                    },
                     validate: (value) =>
                       (value.length >= 8 &&
                         /[A-Z]/.test(value) &&

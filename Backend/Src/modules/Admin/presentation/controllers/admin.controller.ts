@@ -4,8 +4,13 @@ import type { GetProviderApplicationDocumentUseCase } from "../../application/us
 import type { ListProviderApplicationsUseCase } from "../../application/use-cases/list-provider-applications.usecase.js";
 import type { LoginAdminUseCase } from "../../application/use-cases/login-admin.usecase.js";
 import type { ReviewProviderApplicationUseCase } from "../../application/use-cases/review-provider-application.usecase.js";
+import type { ParentRegistrationRepository } from "../../../parents/domain/repositories/parent-registration.repository.js";
+import type { ProviderRegistrationRepository } from "../../../childcare/domain/repositories/provider-registration.repository.js";
 import {
+  adminActiveStatusSchema,
+  adminEntityIdSchema,
   adminLoginSchema,
+  providerApplicationDocumentSchema,
   providerApplicationIdSchema,
   providerReviewSchema,
   providerStatusFilterSchema,
@@ -18,6 +23,8 @@ export class AdminController {
     private readonly listApplications: ListProviderApplicationsUseCase,
     private readonly reviewApplication: ReviewProviderApplicationUseCase,
     private readonly getApplicationDocument: GetProviderApplicationDocumentUseCase,
+    private readonly providerRegistrations: ProviderRegistrationRepository,
+    private readonly parentRegistrations: ParentRegistrationRepository,
   ) {}
 
   login = async (request: Request, response: Response) => {
@@ -56,6 +63,12 @@ export class AdminController {
         message: "Unable to sign in right now.",
       });
     }
+  };
+
+  logout = (_request: Request, response: Response) => {
+    return response.status(200).json({
+      message: "Logged out successfully. Remove the access token from the client.",
+    });
   };
 
   listProviderApplications = async (request: Request, response: Response) => {
@@ -130,7 +143,10 @@ export class AdminController {
     request: Request,
     response: Response,
   ) => {
-    const parsed = providerApplicationIdSchema.safeParse(request.params);
+    const parsed = providerApplicationDocumentSchema.safeParse({
+      ...request.params,
+      ...request.query,
+    });
     if (!parsed.success) {
       return response.status(400).json({
         message: "The application or document reference is invalid.",
@@ -148,31 +164,143 @@ export class AdminController {
 
       response.set("Cache-Control", "private, no-store");
       response.set("X-Content-Type-Options", "nosniff");
-      response.type(document.mimeType);
-      return response.download(document.path, document.originalName, (error) => {
-        if (!error || response.headersSent) {
-          if (error) {
-            console.error("Provider document download failed:", error);
-          }
-          return;
-        }
-
-        console.error("Provider document download failed:", error);
-        if ("code" in error && error.code === "ENOENT") {
-          response.status(404).json({
-            message: "The stored application document is unavailable.",
-          });
-          return;
-        }
-
-        response.status(500).json({
-          message: "Unable to retrieve the application document.",
-        });
-      });
+      return response.redirect(302, document.url);
     } catch (error: unknown) {
       console.error("Admin provider document retrieval failed:", error);
       return response.status(500).json({
         message: "Unable to retrieve the application document.",
+      });
+    }
+  };
+
+  listApprovedCentres = async (_request: Request, response: Response) => {
+    try {
+      const centres = await this.providerRegistrations.listApprovedCentres();
+      return response.status(200).json({ centres });
+    } catch (error: unknown) {
+      console.error("Admin approved-centre listing failed:", error);
+      return response.status(500).json({
+        message: "Unable to load approved daycare centres right now.",
+      });
+    }
+  };
+
+  updateCentreStatus = async (request: Request, response: Response) => {
+    const params = adminEntityIdSchema.safeParse({
+      entityId: request.params.applicationId,
+    });
+    const body = adminActiveStatusSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      return response.status(400).json({
+        message: "Provide a valid centre ID and active status.",
+      });
+    }
+
+    try {
+      const updated = await this.providerRegistrations.setCentreActive(
+        params.data.entityId,
+        body.data.isActive,
+      );
+      if (!updated) {
+        return response.status(404).json({
+          message: "The approved daycare centre was not found.",
+        });
+      }
+      return response.status(200).json({ isActive: body.data.isActive });
+    } catch (error: unknown) {
+      console.error("Admin daycare-centre status update failed:", error);
+      return response.status(500).json({
+        message: "Unable to update this daycare centre right now.",
+      });
+    }
+  };
+
+  deleteCentre = async (request: Request, response: Response) => {
+    const params = adminEntityIdSchema.safeParse({
+      entityId: request.params.applicationId,
+    });
+    if (!params.success) {
+      return response.status(400).json({ message: "The centre ID is invalid." });
+    }
+
+    try {
+      const deleted = await this.providerRegistrations.deleteApprovedCentre(
+        params.data.entityId,
+      );
+      if (!deleted) {
+        return response.status(404).json({
+          message: "The approved daycare centre was not found.",
+        });
+      }
+      return response.status(204).send();
+    } catch (error: unknown) {
+      console.error("Admin daycare-centre deletion failed:", error);
+      return response.status(500).json({
+        message: "Unable to remove this daycare centre right now.",
+      });
+    }
+  };
+
+  listParents = async (_request: Request, response: Response) => {
+    try {
+      const parents = await this.parentRegistrations.listVerifiedParents();
+      return response.status(200).json({ parents });
+    } catch (error: unknown) {
+      console.error("Admin parent listing failed:", error);
+      return response.status(500).json({
+        message: "Unable to load registered parents right now.",
+      });
+    }
+  };
+
+  updateParentStatus = async (request: Request, response: Response) => {
+    const params = adminEntityIdSchema.safeParse({
+      entityId: request.params.parentId,
+    });
+    const body = adminActiveStatusSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      return response.status(400).json({
+        message: "Provide a valid parent ID and active status.",
+      });
+    }
+
+    try {
+      const updated = await this.parentRegistrations.setParentActive(
+        params.data.entityId,
+        body.data.isActive,
+      );
+      if (!updated) {
+        return response.status(404).json({ message: "Parent was not found." });
+      }
+      return response.status(200).json({ isActive: body.data.isActive });
+    } catch (error: unknown) {
+      console.error("Admin parent status update failed:", error);
+      return response.status(500).json({
+        message: "Unable to update this parent right now.",
+      });
+    }
+  };
+
+  deleteParent = async (request: Request, response: Response) => {
+    const params = adminEntityIdSchema.safeParse({
+      entityId: request.params.parentId,
+    });
+    if (!params.success) {
+      return response.status(400).json({ message: "The parent ID is invalid." });
+    }
+
+    try {
+      const deleted = await this.parentRegistrations.deleteParent(
+        params.data.entityId,
+      );
+      if (!deleted) {
+        return response.status(404).json({ message: "Parent was not found." });
+      }
+      return response.status(204).send();
+    } catch (error: unknown) {
+      console.error("Admin parent deletion failed:", error);
+      return response.status(500).json({
+        message: "Unable to remove this parent right now.",
       });
     }
   };

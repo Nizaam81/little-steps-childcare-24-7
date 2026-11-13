@@ -76,9 +76,9 @@ export class ProviderRegistrationRepositoryImpl
         reviewNotes,
         createdAt,
         updatedAt,
-        tradeLicense: this.withoutPath(tradeLicense),
+        tradeLicense: this.documentMetadata(tradeLicense),
         supportingDocuments: supportingDocuments.map((document) =>
-          this.withoutPath(document),
+          this.documentMetadata(document),
         ),
       };
     });
@@ -116,7 +116,7 @@ export class ProviderRegistrationRepositoryImpl
 
   async findDocument(
     applicationId: string,
-    storedName: string,
+    publicId: string,
   ): Promise<ProviderRegistrationDocument | null> {
     const application = await ProviderRegistrationModel.findById(
       applicationId,
@@ -129,25 +129,88 @@ export class ProviderRegistrationRepositoryImpl
       application.tradeLicense,
       ...application.supportingDocuments,
     ];
-    const document = documents.find((candidate) => candidate.storedName === storedName);
+    const document = documents.find(
+      (candidate) => candidate.publicId === publicId,
+    );
     if (!document) {
       return null;
     }
 
     return {
-      storedName: document.storedName,
+      url: document.url,
+      publicId: document.publicId,
       originalName: document.originalName,
       mimeType: document.mimeType,
       size: document.size,
-      path: document.path,
     };
   }
 
-  private withoutPath(
-    document: ProviderRegistrationDocument,
-  ): Omit<ProviderRegistrationDocument, "path"> {
+  async findForLogin(email: string) {
+    const application = await ProviderRegistrationModel.findOne({
+      ownerEmail: email,
+      isActive: { $ne: false },
+    }).select("+passwordHash ownerName ownerEmail centreName status reviewNotes isActive");
+
+    if (!application) {
+      return null;
+    }
+
     return {
-      storedName: document.storedName,
+      id: application.id,
+      ownerName: application.ownerName,
+      ownerEmail: application.ownerEmail,
+      centreName: application.centreName,
+      passwordHash: application.passwordHash,
+      status: application.status as ProviderRegistrationStatus,
+      reviewNotes: application.reviewNotes,
+      isActive: application.isActive,
+    };
+  }
+
+  async listApprovedCentres() {
+    const centres = await ProviderRegistrationModel.find({ status: "approved" })
+      .select(
+        "_id centreName ownerName ownerEmail ownerPhone address district centrePhone capacity isActive reviewedAt updatedAt",
+      )
+      .sort({ reviewedAt: -1, updatedAt: -1 });
+
+    return centres.map((centre) => ({
+      applicationId: centre.id,
+      centreName: centre.centreName,
+      ownerName: centre.ownerName,
+      ownerEmail: centre.ownerEmail,
+      ownerPhone: centre.ownerPhone,
+      address: centre.address,
+      district: centre.district,
+      centrePhone: centre.centrePhone,
+      capacity: centre.capacity,
+      isActive: centre.isActive,
+      approvedAt: centre.reviewedAt ?? centre.updatedAt,
+    }));
+  }
+
+  async setCentreActive(applicationId: string, isActive: boolean) {
+    const result = await ProviderRegistrationModel.updateOne(
+      { _id: applicationId, status: "approved" },
+      { $set: { isActive } },
+    );
+    return result.matchedCount > 0;
+  }
+
+  async deleteApprovedCentre(applicationId: string) {
+    const result = await ProviderRegistrationModel.deleteOne({
+      _id: applicationId,
+      status: "approved",
+    });
+    return result.deletedCount > 0;
+  }
+
+  private documentMetadata(
+    document: ProviderRegistrationDocument,
+  ): ProviderRegistrationDocument {
+    return {
+      url: document.url,
+      publicId: document.publicId,
       originalName: document.originalName,
       mimeType: document.mimeType,
       size: document.size,

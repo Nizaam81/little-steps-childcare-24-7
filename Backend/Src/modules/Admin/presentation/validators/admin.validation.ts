@@ -36,7 +36,16 @@ export const providerReviewSchema = z
 
 export const providerApplicationIdSchema = z.object({
   applicationId: z.string().regex(/^[a-f\d]{24}$/i),
-  storedName: z.string().regex(
-    /^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}\.(pdf|jpg|png)$/i,
-  ),
+});
+
+export const providerApplicationDocumentSchema = providerApplicationIdSchema.extend({
+  publicId: z.string().min(1).max(255),
+});
+
+export const adminEntityIdSchema = z.object({
+  entityId: z.string().regex(/^[a-f\d]{24}$/i),
+});
+
+export const adminActiveStatusSchema = z.object({
+  isActive: z.boolean(),
 });

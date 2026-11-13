@@ -16,6 +16,9 @@ SMTP_PASS=your-smtp-password
 EMAIL_FROM=your-sender-email
 JWT_ACCESS_SECRET=replace-with-a-unique-random-access-secret-of-at-least-32-characters
 JWT_REFRESH_SECRET=replace-with-a-unique-random-refresh-secret-of-at-least-32-characters
+CLOUD_NAME=your-cloudinary-cloud-name
+API_KEY=your-cloudinary-api-key
+API_SECRET=your-cloudinary-api-secret
 ```
 
 Your application will be available at http://localhost:3000.
@@ -45,14 +48,24 @@ The childcare provider onboarding API is mounted under `/api/providers`:
    JSON field, one `tradeLicense` PDF/JPG/PNG file, and up to ten
    `supportingDocuments` PDF/JPG/PNG files. Each file can be at most 10 MB.
    The backend validates the owner email verification again, hashes the
-   password, stores documents outside the public web root, and returns
+   password, uploads documents to Cloudinary, stores Cloudinary URLs and
+   public IDs in MongoDB, and returns
    `{ "applicationId", "status": "pending_verification" }`.
 
-Documents are stored in the Docker `provider-documents` volume by default. Set
-`PROVIDER_DOCUMENTS_DIR` to use a different private persistent directory. OTP
+Multer temporarily receives files in `storage/provider-applications`; the
+backend removes each temporary file after its Cloudinary upload succeeds.
+Cloudinary assets use the `Little_Steps/provider-applications` folder. OTP
 state currently lives in process memory, so codes are lost on restarts and a
-multi-instance production deployment should use a shared cache. Use HTTPS in
-production and restrict access to stored application documents.
+multi-instance production deployment should use a shared cache. Keep
+Cloudinary credentials private and restrict access to application documents.
+
+Providers can sign in with `POST /api/providers/login` using
+`{ "email": "...", "password": "..." }`. A successful login always returns the
+application status and review notes. Only an `approved` provider receives a
+session token and `dashboardAccess: true`; pending, rejected, and
+corrections-requested applications receive no token.
+Providers can log out with `POST /api/providers/logout` (also available at
+`POST /api/childcare/logout`).
 
 ### Admin login and provider review
 
@@ -65,13 +78,14 @@ log in. There is no public admin registration or password-reset endpoint.
 1. `POST /api/admin/login` with `{ "email", "password" }` returns an admin JWT.
    The token expires after 12 hours and is signed using `JWT_ACCESS_SECRET`.
 2. Send that token as `Authorization: Bearer <token>` to all admin endpoints.
-3. `GET /api/admin/providers` lists applications; optionally filter with
+3. `POST /api/admin/logout` ends the client session.
+4. `GET /api/admin/providers` lists applications; optionally filter with
    `?status=pending_verification`, `approved`, `rejected`, or
    `corrections_requested`.
-4. `GET /api/admin/providers/:applicationId/documents/:storedName` downloads
-   an application document. This endpoint is admin-authenticated and does not
-   expose the document storage path.
-5. `PATCH /api/admin/providers/:applicationId/review` with
+5. `GET /api/admin/providers/:applicationId/documents?publicId=<encoded-public-id>`
+   redirects to the matching Cloudinary document. This endpoint is
+   admin-authenticated.
+6. `PATCH /api/admin/providers/:applicationId/review` with
    `{ "status": "approved" | "rejected" | "corrections_requested",
    "reviewNotes": "..." }` records the decision. A reason is required when
    rejecting or requesting corrections. Pending applications and applications
@@ -83,20 +97,23 @@ session tokens are not accepted by admin routes. Configure a private,
 stable `JWT_ACCESS_SECRET` of at least 32 characters and protect it like a
 credential.
 
-### Parent login
+### Parent login and logout
 
 `POST /api/parent/login` accepts `{ "email", "password", "rememberMe" }`.
 The email is normalized and validated, and `rememberMe` is optional (defaults
-to `false`). Successful login sets the signed JWT in the HttpOnly
-`parent_session` cookie; the token is not returned in the response body. The
-cookie expires with the token: 12 hours by default or 30 days when
-`rememberMe` is `true`.
+to `false`). Successful login returns a signed JWT in the response body; the
+token expires after 12 hours by default or 30 days when `rememberMe` is `true`.
+Use `POST /api/parent/logout` to end the client session.
 
 Set `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` in `.env` to separate, unique,
 randomly generated secrets of at least 32 characters. The current login flow
 uses `JWT_ACCESS_SECRET` to sign the parent session JWT; refresh-token issuance
 is not implemented yet. Keep the access secret private and stable across app
 instances; changing it invalidates existing parent session tokens.
+
+Logout endpoints return success so clients can clear their stored access token.
+JWT logout is client-side only: tokens are not revoked by the server and remain
+valid until they expire.
 
 ### Deploying your application to the cloud
 

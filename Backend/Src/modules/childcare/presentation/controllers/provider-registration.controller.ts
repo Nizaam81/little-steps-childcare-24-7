@@ -85,14 +85,18 @@ export class ProviderRegistrationController {
     const parsedApplication = this.parseApplication(request.body?.application);
 
     if (!parsedApplication.success) {
-      await this.removeUploadedFiles(files);
+      if (!(await this.cleanUploadedFiles(files, response))) {
+        return;
+      }
       return response.status(400).json({
         message: "Please provide valid childcare application details.",
         errors: parsedApplication.error.issues,
       });
     }
     if (!tradeLicense) {
-      await this.removeUploadedFiles(files);
+      if (!(await this.cleanUploadedFiles(files, response))) {
+        return;
+      }
       return response.status(400).json({
         message: "A trade licence is required.",
       });
@@ -106,7 +110,9 @@ export class ProviderRegistrationController {
       });
       return response.status(201).json(result);
     } catch (error: unknown) {
-      await this.removeUploadedFiles(files);
+      if (!(await this.cleanUploadedFiles(files, response))) {
+        return;
+      }
 
       if (error instanceof Error && error.message === "EMAIL_NOT_VERIFIED") {
         return response.status(403).json({
@@ -116,6 +122,26 @@ export class ProviderRegistrationController {
       if (error instanceof Error && error.message === "INVALID_DOCUMENT_CONTENT") {
         return response.status(400).json({
           message: "A document does not match its declared PDF, JPG or PNG format.",
+        });
+      }
+      if (error instanceof Error && error.message === "CLOUDINARY_CONFIGURATION_MISSING") {
+        return response.status(503).json({
+          message: "Cloudinary storage is not configured on the server.",
+        });
+      }
+      if (error instanceof Error && error.message === "CLOUDINARY_UPLOAD_FAILED") {
+        console.error("Cloudinary provider document upload failed:", error.cause);
+        return response.status(502).json({
+          message: "Unable to upload documents to Cloudinary. Please try again.",
+        });
+      }
+      if (
+        error instanceof Error &&
+        error.message === "PROVIDER_DOCUMENT_TEMP_CLEANUP_FAILED"
+      ) {
+        console.error("Unable to remove a provider document temporary file:", error.cause);
+        return response.status(500).json({
+          message: "A temporary document could not be cleaned up after upload.",
         });
       }
       if (
@@ -182,13 +208,37 @@ export class ProviderRegistrationController {
   }
 
   private async removeUploadedFiles(files: Express.Multer.File[]): Promise<void> {
-    const results = await Promise.allSettled(
-      files.map((file) => unlink(file.path)),
-    );
+    const results = await Promise.allSettled(files.map((file) => unlink(file.path)));
+    const failures: unknown[] = [];
     for (const result of results) {
-      if (result.status === "rejected") {
-        console.error("Unable to remove an unsubmitted provider document:", result.reason);
+      if (
+        result.status === "rejected" &&
+        !(typeof result.reason === "object" &&
+          result.reason !== null &&
+          "code" in result.reason &&
+          result.reason.code === "ENOENT")
+      ) {
+        failures.push(result.reason);
       }
+    }
+    if (failures.length > 0) {
+      throw new Error("PROVIDER_DOCUMENT_CLEANUP_FAILED", { cause: failures });
+    }
+  }
+
+  private async cleanUploadedFiles(
+    files: Express.Multer.File[],
+    response: Response,
+  ): Promise<boolean> {
+    try {
+      await this.removeUploadedFiles(files);
+      return true;
+    } catch (error: unknown) {
+      console.error("Unable to clean up provider document temporary files:", error);
+      response.status(500).json({
+        message: "Unable to clean up temporary uploaded documents.",
+      });
+      return false;
     }
   }
 }

@@ -72,6 +72,10 @@ export default function ParentDetailsStep({
             className={registrationInputClass(!!errors.email)}
             {...register("email", {
               required: "Please enter your email address.",
+              maxLength: {
+                value: 254,
+                message: "Email address must be 254 characters or fewer.",
+              },
               pattern: {
                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                 message: "Please enter a valid email address.",
@@ -101,8 +105,16 @@ export default function ParentDetailsStep({
             className={registrationInputClass(!!errors.phoneNumber)}
             {...register("phoneNumber", {
               required: "Please enter your phone number.",
+              maxLength: {
+                value: 20,
+                message: "Phone number must be 20 characters or fewer.",
+              },
               validate: (value) =>
-                value.trim().length > 0 || "Please enter your phone number.",
+                /^[+]?[0-9\s()-]+$/.test(value) &&
+                value.replace(/\D/g, "").length >= 7 &&
+                value.replace(/\D/g, "").length <= 15
+                  ? true
+                  : "Enter a valid phone number with 7 to 15 digits.",
             })}
           />
           {errors.phoneNumber && (

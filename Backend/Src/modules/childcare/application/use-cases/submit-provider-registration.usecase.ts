@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
+import type { UploadApiResponse } from "cloudinary";
 import type {
   ProviderRegistrationData,
   ProviderRegistrationDocument,
@@ -6,6 +7,10 @@ import type {
 } from "../../domain/repositories/provider-registration.repository.js";
 import type { ProviderEmailVerificationStore } from "../services/provider-email-verification.store.js";
 import { hashPassword } from "../../../../shared/utils/password.js";
+import {
+  deleteProviderDocument,
+  uploadProviderDocument,
+} from "../../infrastructure/services/cloudinary-provider-document-storage.js";
 
 const isValidDocumentContent = async (
   document: Express.Multer.File,
@@ -36,12 +41,13 @@ const isValidDocumentContent = async (
 
 const toDocument = (
   document: Express.Multer.File,
+  upload: UploadApiResponse,
 ): ProviderRegistrationDocument => ({
-  storedName: document.filename,
+  url: upload.secure_url,
+  publicId: upload.public_id,
   originalName: document.originalname,
   mimeType: document.mimetype,
   size: document.size,
-  path: document.path,
 });
 
 export class SubmitProviderRegistrationUseCase {
@@ -69,16 +75,53 @@ export class SubmitProviderRegistrationUseCase {
       }
     }
 
-    const { password, ...application } = input.application;
-    const registration = await this.registrations.create({
-      application: {
-        ...application,
-        ownerEmail: email,
-        passwordHash: await hashPassword(password),
-      },
-      tradeLicense: toDocument(input.tradeLicense),
-      supportingDocuments: input.supportingDocuments.map(toDocument),
-    });
+    const uploaded: UploadApiResponse[] = [];
+    let registration: { id: string };
+    try {
+      const uploadedDocuments: ProviderRegistrationDocument[] = [];
+      for (const document of documents) {
+        const upload = await uploadProviderDocument(document.path);
+        uploaded.push(upload);
+        uploadedDocuments.push(toDocument(document, upload));
+        try {
+          await unlink(document.path);
+        } catch (error: unknown) {
+          throw new Error("PROVIDER_DOCUMENT_TEMP_CLEANUP_FAILED", {
+            cause: error,
+          });
+        }
+      }
+
+      const { password, ...application } = input.application;
+      const tradeLicense = uploadedDocuments[0];
+      if (!tradeLicense) {
+        throw new Error("TRADE_LICENSE_UPLOAD_MISSING");
+      }
+      registration = await this.registrations.create({
+        application: {
+          ...application,
+          ownerEmail: email,
+          passwordHash: await hashPassword(password),
+        },
+        tradeLicense,
+        supportingDocuments: uploadedDocuments.slice(1),
+      });
+    } catch (error: unknown) {
+      const cleanupResults = await Promise.allSettled(
+        uploaded.map((document) =>
+          deleteProviderDocument(document.public_id, document.resource_type),
+        ),
+      );
+      for (const result of cleanupResults) {
+        if (result.status === "rejected") {
+          console.error(
+            "Unable to remove a provider document from Cloudinary after a failed registration:",
+            result.reason,
+          );
+        }
+      }
+      throw error;
+    }
 
     this.verificationStore.consumeVerified(email);
 

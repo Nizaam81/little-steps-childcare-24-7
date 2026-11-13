@@ -2,9 +2,16 @@ import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 import LandingPage from "./Landing_page";
 import AdminLogin from "./features/admin/AdminLogin";
+import AdminDashboard from "./features/admin/AdminDashboard";
 import ParentLogin from "./features/auth/Parent-Login";
+import ProviderLogin from "./features/auth/ProviderLogin";
 import ParentRegistration from "./features/auth/ParentRegistration";
 import InformationPage from "./features/pages/InformationPage";
+import ContactPage from "./features/pages/ContactPage";
+import PrivacyPage from "./features/pages/PrivacyPage";
+import TermsPage from "./features/pages/TermsPage";
+import ParentDashboard from "./features/parent/Dashbord";
+import ProviderDashboard from "./features/provider/ProviderDashboard";
 
 const ProviderRegistration = lazy(
   () => import("./features/provider-registration/ProviderRegistration"),
@@ -17,17 +24,11 @@ export default function App() {
       <Route path="/register" element={<ParentRegistration />} />
       <Route path="/login" element={<ParentLogin />} />
       <Route path="/admin/login" element={<AdminLogin />} />
-      <Route
-        path="/parent/dashboard"
-        element={
-          <InformationPage
-            title="Welcome to your parent dashboard"
-            description="You are signed in. Parent dashboard features are coming soon."
-            actionLabel="Back to home"
-            actionTo="/"
-          />
-        }
-      />
+      <Route path="/admin/dashboard" element={<AdminDashboard />} />
+      <Route path="/parent/dashboard" element={<ParentDashboard />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route
         path="/centers"
         element={
@@ -65,39 +66,8 @@ export default function App() {
           </Suspense>
         }
       />
-      <Route
-        path="  "
-        element={
-          <InformationPage
-            title="Provider login"
-            description="Provider sign-in will be available when provider authentication is connected."
-            actionLabel="Back to home"
-            actionTo="/"
-          />
-        }
-      />
-      <Route
-        path="/privacy"
-        element={
-          <InformationPage
-            title="Privacy policy"
-            description="Privacy information will be published here."
-            actionLabel="Back to home"
-            actionTo="/"
-          />
-        }
-      />
-      <Route
-        path="/contact"
-        element={
-          <InformationPage
-            title="Contact us"
-            description="Our family support contact information will be published here."
-            actionLabel="Back to home"
-            actionTo="/"
-          />
-        }
-      />
+      <Route path="/provider/login" element={<ProviderLogin />} />
+      <Route path="/provider/dashboard" element={<ProviderDashboard />} />
       <Route
         path="*"
         element={

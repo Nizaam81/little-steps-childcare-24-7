@@ -1,4 +1,5 @@
-import { Check, Clock3, FileCheck2, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Clock3, FileCheck2, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { ProviderRegistrationResponse } from "./registrationTypes";
 
 type VerificationStepProps = {
@@ -56,6 +57,24 @@ export default function VerificationStep({ response }: VerificationStepProps) {
           description="We’ll approve, decline or request corrections."
         />
       </ol>
+
+      <div className="mx-auto mt-7 flex max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800">
+            Want to check your daycare status?
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Sign in to view your application status and updates.
+          </p>
+        </div>
+        <Link
+          to="/provider/login"
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-700/20"
+        >
+          Provider login
+          <ArrowRight size={16} aria-hidden="true" />
+        </Link>
+      </div>
     </section>
   );
 }

@@ -48,5 +48,6 @@ parentRoutes.post("/register", parentController.register);
 parentRoutes.post("/register/send-otp", sendOtpController.sendOtp);
 parentRoutes.post("/register/verify-otp", verifyOtpController.verifyOtp);
 parentRoutes.post("/login", parentLoginController.login);
+parentRoutes.post("/logout", parentLoginController.logout);
 
 export default parentRoutes;

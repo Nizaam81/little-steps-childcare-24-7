@@ -1,5 +1,4 @@
 
-import axios from "axios";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
@@ -15,6 +14,7 @@ import {
   Heart,
 } from "lucide-react";
 import { getApiErrorMessage } from "../../utils/api-error-message";
+import { adminApi } from "./adminApi";
 
 interface AdminLoginForm {
   email: string;
@@ -28,13 +28,6 @@ interface AdminLoginResponse {
   };
   expiresInSeconds: number;
 }
-
-const adminApi = axios.create({
-  baseURL: `${(import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "")}/api/admin`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -191,6 +184,10 @@ const AdminLogin = () => {
                     }`}
                     {...register("email", {
                       required: "Email address is required.",
+                      maxLength: {
+                        value: 254,
+                        message: "Email address must be 254 characters or fewer.",
+                      },
                       pattern: {
                         value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                         message: "Please enter a valid email address.",

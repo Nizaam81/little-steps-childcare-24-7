@@ -88,6 +88,7 @@ export class ParentRegistrationRepositoryImpl
     const registration = await ParentRegistrationModel.findOne({
       email: email.trim().toLowerCase(),
       emailVerified: true,
+      isActive: { $ne: false },
     }).select("+passwordHash _id fullName email");
 
     if (!registration?.passwordHash) {
@@ -100,5 +101,38 @@ export class ParentRegistrationRepositoryImpl
       email: registration.email,
       passwordHash: registration.passwordHash,
     };
+  }
+
+  async listVerifiedParents() {
+    const parents = await ParentRegistrationModel.find({
+      emailVerified: true,
+    })
+      .select("_id fullName email phoneNumber isActive createdAt")
+      .sort({ createdAt: -1 });
+
+    return parents.map((parent) => ({
+      parentId: parent.id,
+      fullName: parent.fullName,
+      email: parent.email,
+      phoneNumber: parent.phoneNumber,
+      isActive: parent.isActive,
+      createdAt: parent.createdAt,
+    }));
+  }
+
+  async setParentActive(parentId: string, isActive: boolean) {
+    const result = await ParentRegistrationModel.updateOne(
+      { _id: parentId, emailVerified: true },
+      { $set: { isActive } },
+    );
+    return result.matchedCount > 0;
+  }
+
+  async deleteParent(parentId: string) {
+    const result = await ParentRegistrationModel.deleteOne({
+      _id: parentId,
+      emailVerified: true,
+    });
+    return result.deletedCount > 0;
   }
 }

@@ -7,11 +7,11 @@ export class GetProviderApplicationDocumentUseCase {
 
   async execute(input: {
     applicationId: string;
-    storedName: string;
+    publicId: string;
   }) {
     return this.registrations.findDocument(
       input.applicationId,
-      input.storedName,
+      input.publicId,
     );
   }
 }

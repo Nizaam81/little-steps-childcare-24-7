@@ -2,11 +2,11 @@ import { Schema, model } from "mongoose";
 
 const documentSchema = new Schema(
   {
-    storedName: { type: String, required: true },
+    url: { type: String, required: true },
+    publicId: { type: String, required: true },
     originalName: { type: String, required: true },
     mimeType: { type: String, required: true },
     size: { type: Number, required: true },
-    path: { type: String, required: true },
   },
   { _id: false },
 );
@@ -43,6 +43,7 @@ const providerRegistrationSchema = new Schema(
       default: "pending_verification",
       required: true,
     },
+    isActive: { type: Boolean, default: true },
     reviewNotes: { type: String, default: "" },
     reviewedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
     reviewedAt: { type: Date },

@@ -27,6 +27,11 @@ const parentRegistrationSchema = new Schema(
       default: false,
     },
 
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
     passwordHash: {
       type: String,
       select: false,
