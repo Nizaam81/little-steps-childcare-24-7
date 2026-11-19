@@ -21,7 +21,7 @@ class App {
       cors({
         origin: (origin, callback) => {
           const configuredOrigins = (
-            process.env.FRONTEND_URL ?? "http://localhost:5173"
+            process.env.FRONTEND_URL ?? "https://little-steps-childcare-24-7.vercel.app"
           )
             .split(",")
             .map((value) => value.trim());

@@ -232,8 +232,8 @@ export default function LandingPage() {
                 What brings you to Little Steps?
               </h2>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <a
-                  href="#centers"
+                <Link
+                  to="/register"
                   className="group flex min-h-36 flex-col justify-between rounded-2xl border border-[#dce9e3] bg-[#f7faf9] p-4 transition hover:border-[#29966f] hover:bg-[#eff8f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#29966f] focus-visible:ring-offset-2"
                 >
                   <span>
@@ -254,7 +254,7 @@ export default function LandingPage() {
                       className="transition-transform group-hover:translate-x-1"
                     />
                   </span>
-                </a>
+                </Link>
 
                 <Link
                   to="/provider/register"
