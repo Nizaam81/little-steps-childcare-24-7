@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { ProviderSessionTokenService } from "../../application/services/provider-session-token.service.js";
+import type { AuthTokenService } from "../../../../shared/services/auth-token.service.js";
 import type { LoginProviderUseCase } from "../../application/use-cases/login-provider.usecase.js";
 import { providerLoginSchema } from "../Validators/provider-login.validation.js";
 
@@ -8,7 +8,7 @@ const providerSessionDurationSeconds = 12 * 60 * 60;
 export class ProviderLoginController {
   constructor(
     private readonly loginProvider: LoginProviderUseCase,
-    private readonly sessionTokens: ProviderSessionTokenService,
+    private readonly sessionTokens: AuthTokenService,
   ) {}
 
   login = async (request: Request, response: Response) => {
@@ -22,11 +22,12 @@ export class ProviderLoginController {
 
     try {
       const result = await this.loginProvider.execute(parsed.data);
-      const token = result.dashboardAccess
-        ? this.sessionTokens.issue({
-            providerId: result.provider.id,
+      const session = result.dashboardAccess
+        ? await this.sessionTokens.issueSession({
+            subject: result.provider.id,
             email: result.provider.ownerEmail,
-            expiresInSeconds: providerSessionDurationSeconds,
+            role: "provider",
+            accessExpiresInSeconds: providerSessionDurationSeconds,
           })
         : null;
 
@@ -36,7 +37,8 @@ export class ProviderLoginController {
           : "Application status retrieved. Dashboard access is not available yet.",
         provider: result.provider,
         dashboardAccess: result.dashboardAccess,
-        token,
+        ...(session ?? {}),
+        token: session?.accessToken ?? null,
       });
     } catch (error: unknown) {
       if (
@@ -55,9 +57,16 @@ export class ProviderLoginController {
     }
   };
 
-  logout = (_request: Request, response: Response) => {
-    return response.status(200).json({
-      message: "Logged out successfully. Remove the access token from the client.",
-    });
+  logout = async (request: Request, response: Response) => {
+    if (!request.auth) {
+      return response.status(401).json({ message: "Authentication is required." });
+    }
+    try {
+      await this.sessionTokens.revokeSession(request.auth);
+      return response.status(200).json({ message: "Logged out successfully." });
+    } catch (error: unknown) {
+      console.error("Provider logout failed:", error);
+      return response.status(500).json({ message: "Unable to log out right now." });
+    }
   };
 }

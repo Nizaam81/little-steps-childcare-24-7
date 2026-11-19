@@ -5,6 +5,7 @@ import AdminLogin from "./features/admin/AdminLogin";
 import AdminDashboard from "./features/admin/AdminDashboard";
 import ParentLogin from "./features/auth/Parent-Login";
 import ProviderLogin from "./features/auth/ProviderLogin";
+import GuestRoute from "./features/auth/GuestRoute";
 import ParentRegistration from "./features/auth/ParentRegistration";
 import InformationPage from "./features/pages/InformationPage";
 import ContactPage from "./features/pages/ContactPage";
@@ -12,6 +13,7 @@ import PrivacyPage from "./features/pages/PrivacyPage";
 import TermsPage from "./features/pages/TermsPage";
 import ParentDashboard from "./features/parent/Dashbord";
 import ProviderDashboard from "./features/provider/ProviderDashboard";
+import ProtectedRoute from "./features/auth/ProtectedRoute";
 
 const ProviderRegistration = lazy(
   () => import("./features/provider-registration/ProviderRegistration"),
@@ -22,10 +24,10 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/register" element={<ParentRegistration />} />
-      <Route path="/login" element={<ParentLogin />} />
-      <Route path="/admin/login" element={<AdminLogin />} />
-      <Route path="/admin/dashboard" element={<AdminDashboard />} />
-      <Route path="/parent/dashboard" element={<ParentDashboard />} />
+      <Route path="/login" element={<GuestRoute><ParentLogin /></GuestRoute>} />
+      <Route path="/admin/login" element={<GuestRoute><AdminLogin /></GuestRoute>} />
+      <Route path="/admin/dashboard" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+      <Route path="/parent/dashboard" element={<ProtectedRoute role="parent"><ParentDashboard /></ProtectedRoute>} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
@@ -66,8 +68,8 @@ export default function App() {
           </Suspense>
         }
       />
-      <Route path="/provider/login" element={<ProviderLogin />} />
-      <Route path="/provider/dashboard" element={<ProviderDashboard />} />
+      <Route path="/provider/login" element={<GuestRoute><ProviderLogin /></GuestRoute>} />
+      <Route path="/provider/dashboard" element={<ProtectedRoute role="provider"><ProviderDashboard /></ProtectedRoute>} />
       <Route
         path="*"
         element={

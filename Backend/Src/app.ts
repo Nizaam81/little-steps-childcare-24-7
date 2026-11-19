@@ -4,6 +4,8 @@ import express, { type Express } from "express";
 import adminRoutes from "./modules/Admin/presentation/Routes/admin.routes.js";
 import childcareRoutes from "./modules/childcare/presentation/Routes/childcare.routes.js";
 import parentRoutes from "./modules/parents/presentation/routes/Parent.routes.js";
+import { providerSubscriptionController } from "./modules/subscriptions/presentation/Routes/provider-subscription.routes.js";
+import authRoutes from "./shared/routes/auth.routes.js";
 
 class App {
   private readonly app: Express;
@@ -41,8 +43,14 @@ class App {
         credentials: true,
       }),
     );
+    this.app.post(
+      "/api/stripe/webhook",
+      express.raw({ type: "application/json" }),
+      providerSubscriptionController.handleWebhook,
+    );
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
+    this.app.use("/api/auth", authRoutes);
   }
 
   private setupRoutes(): void {

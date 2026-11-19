@@ -1,4 +1,5 @@
 import axios from "axios";
+import { installAuthInterceptors } from "../auth/authSession";
 
 export type ProviderApplicationStatus =
   | "pending_verification"
@@ -76,12 +77,9 @@ export const adminApi = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-adminApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem("adminToken");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+installAuthInterceptors(adminApi, {
+  access: "adminToken",
+  refresh: "adminRefreshToken",
 });
 
 export const fetchProviderApplications = async () => {

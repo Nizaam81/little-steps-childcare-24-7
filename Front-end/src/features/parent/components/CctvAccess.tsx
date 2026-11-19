@@ -14,7 +14,7 @@ type CctvAccessProps = {
 };
 
 const CctvAccess = ({ centers }: CctvAccessProps) => {
-  const [requestedCenters, setRequestedCenters] = useState<number[]>([]);
+  const [requestedCenters, setRequestedCenters] = useState<Array<string | number>>([]);
 
   const requestAccess = (center: Daycare) => {
     setRequestedCenters((current) =>

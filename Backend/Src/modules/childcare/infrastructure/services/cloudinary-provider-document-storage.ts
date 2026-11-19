@@ -34,6 +34,22 @@ export const uploadProviderDocument = async (
   }
 };
 
+export const uploadDaycarePhoto = async (
+  filePath: string,
+): Promise<UploadApiResponse> => {
+  configureCloudinary();
+  try {
+    return await cloudinary.uploader.upload(filePath, {
+      folder: "Little_Steps/daycare-centres",
+      resource_type: "image",
+      allowed_formats: ["jpg", "jpeg", "png", "webp"],
+      transformation: [{ width: 1800, height: 1200, crop: "limit", quality: "auto" }],
+    });
+  } catch (error: unknown) {
+    throw new Error("CLOUDINARY_UPLOAD_FAILED", { cause: error });
+  }
+};
+
 export const deleteProviderDocument = async (
   publicId: string,
   resourceType: UploadApiResponse["resource_type"],

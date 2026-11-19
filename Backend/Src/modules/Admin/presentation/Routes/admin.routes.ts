@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { AdminSessionTokenService } from "../../application/services/admin-session-token.service.js";
+import { authTokenService } from "../../../../shared/services/auth-token.service.js";
 import { GetProviderApplicationDocumentUseCase } from "../../application/use-cases/get-provider-application-document.usecase.js";
 import { ListProviderApplicationsUseCase } from "../../application/use-cases/list-provider-applications.usecase.js";
 import { LoginAdminUseCase } from "../../application/use-cases/login-admin.usecase.js";
@@ -8,13 +8,13 @@ import { AdminRepositoryImpl } from "../../infrastructure/repositories/admin.rep
 import { ProviderRegistrationRepositoryImpl } from "../../../childcare/infrastructure/repositories/provider-registration.repository.impl.js";
 import { ParentRegistrationRepositoryImpl } from "../../../parents/infrastructure/repositories/parent-registration.repository.impl.js";
 import { AdminController } from "../controllers/admin.controller.js";
-import { requireAdmin } from "../middleware/require-admin.middleware.js";
+import { requireRole } from "../../../../shared/middlewares/require-auth.middleware.js";
 
 const adminRoutes = Router();
 const adminRepository = new AdminRepositoryImpl();
 const registrationRepository = new ProviderRegistrationRepositoryImpl();
 const parentRepository = new ParentRegistrationRepositoryImpl();
-const adminTokens = new AdminSessionTokenService();
+const adminTokens = authTokenService;
 const controller = new AdminController(
   new LoginAdminUseCase(adminRepository),
   adminTokens,
@@ -26,7 +26,7 @@ const controller = new AdminController(
 );
 
 adminRoutes.post("/login", controller.login);
-adminRoutes.use(requireAdmin(adminTokens));
+adminRoutes.use(requireRole("admin"));
 adminRoutes.post("/logout", controller.logout);
 adminRoutes.get("/providers", controller.listProviderApplications);
 adminRoutes.get("/centres", controller.listApprovedCentres);

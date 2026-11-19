@@ -29,6 +29,11 @@ export interface Caregiver {
   experience: string;
 }
 
+export interface DaycarePhoto {
+  id: string;
+  url: string;
+}
+
 export interface BookingRequest {
   id: string;
   parentBookingId?: string;
@@ -36,11 +41,15 @@ export interface BookingRequest {
   childName: string;
   carePlan: string;
   requestedDate: string;
+  bookingStartDate?: string;
+  bookingEndDate?: string;
+  cameraAccessStatus?: "not_requested" | "pending" | "approved" | "rejected";
   status: "Pending" | "Accepted" | "Declined";
 }
 
 export interface ProviderWorkspaceData {
   profile: ProviderCentreProfile;
+  photos: DaycarePhoto[];
   caregivers: Caregiver[];
   bookings: BookingRequest[];
   availableDays: string[];

@@ -13,8 +13,12 @@ import type { Daycare } from "../dashboardTypes";
 type DaycareCardProps = {
   center: Daycare;
   isFavorite: boolean;
-  onToggleFavorite: (id: number) => void;
+  onToggleFavorite: (id: string | number) => void;
   onBook: (center: Daycare) => void;
+  onViewDetails: (center: Daycare) => void;
+  onReview: (center: Daycare) => void;
+  hasActiveBooking: boolean;
+  isActiveBookingCentre: boolean;
 };
 
 const DaycareCard = ({
@@ -22,6 +26,10 @@ const DaycareCard = ({
   isFavorite,
   onToggleFavorite,
   onBook,
+  onViewDetails,
+  onReview,
+  hasActiveBooking,
+  isActiveBookingCentre,
 }: DaycareCardProps) => (
   <article className="overflow-hidden rounded-2xl border border-[#e3ece7] bg-white shadow-sm transition hover:-translate-y-1 hover:border-[#c5dfd3] hover:shadow-lg">
     <div className="relative h-48">
@@ -76,12 +84,13 @@ const DaycareCard = ({
         </p>
       )}
 
-      <div className="flex items-center justify-between border-t border-[#e5eeea] pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e5eeea] pt-4">
         <div>
           <p className="text-xs text-[#778691]">Starting from</p>
           <p className="text-xl font-bold text-[#237960]">
-            ₹{center.price.toLocaleString("en-IN")}
-            <span className="text-xs font-normal text-[#778691]"> /month</span>
+            {center.price > 0
+              ? <>₹{center.price.toLocaleString("en-IN")}<span className="text-xs font-normal text-[#778691]"> /month</span></>
+              : <span className="text-sm">Contact centre for pricing</span>}
           </p>
           {center.pricePlans &&
             (center.pricePlans.hourly > 0 || center.pricePlans.daily > 0) && (
@@ -92,12 +101,30 @@ const DaycareCard = ({
               </p>
             )}
         </div>
-        <button
-          onClick={() => onBook(center)}
-          className="flex items-center gap-2 rounded-xl bg-[#278a70] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1f755f]"
-        >
-          Book now <ArrowRight size={16} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onViewDetails(center)}
+            className="rounded-xl border border-[#d8e6e0] px-3 py-3 text-sm font-semibold text-[#526777] transition hover:border-[#278a70] hover:text-[#278a70]"
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            onClick={() => onReview(center)}
+            className="rounded-xl border border-[#d8e6e0] px-3 py-3 text-sm font-semibold text-[#526777] transition hover:border-[#278a70] hover:text-[#278a70]"
+          >
+            Leave feedback
+          </button>
+          <button
+            type="button"
+            onClick={() => isActiveBookingCentre ? onViewDetails(center) : onBook(center)}
+            disabled={hasActiveBooking && !isActiveBookingCentre}
+            className="flex items-center gap-2 rounded-xl bg-[#278a70] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1f755f] disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            {isActiveBookingCentre ? "Live camera access" : hasActiveBooking ? "Booking active" : "Request care"} <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
       <p className="text-xs text-[#81929b]">{center.reviews} parent reviews</p>
     </div>

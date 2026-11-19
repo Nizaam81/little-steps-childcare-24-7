@@ -5,18 +5,21 @@ import type { Daycare } from "../dashboardTypes";
 type BookingDialogProps = {
   center: Daycare;
   onClose: () => void;
-  onConfirm: (childName: string) => void;
+  onConfirm: (childName: string, bookingStartDate: string, bookingEndDate: string) => void;
 };
 
 const BookingDialog = ({ center, onClose, onConfirm }: BookingDialogProps) => {
+  const today = new Date().toISOString().slice(0, 10);
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
-  } = useForm<{ childName: string }>({
+  } = useForm<{ childName: string; bookingStartDate: string; bookingEndDate: string }>({
     mode: "onTouched",
-    defaultValues: { childName: "" },
+    defaultValues: { childName: "", bookingStartDate: today, bookingEndDate: today },
   });
+  const startDate = watch("bookingStartDate");
 
   return (
   <div
@@ -32,7 +35,13 @@ const BookingDialog = ({ center, onClose, onConfirm }: BookingDialogProps) => {
       aria-labelledby="booking-dialog-title"
     >
       <form
-        onSubmit={handleSubmit(({ childName }) => onConfirm(childName.trim()))}
+        onSubmit={handleSubmit(({ childName, bookingStartDate, bookingEndDate }) =>
+          onConfirm(
+            childName.trim(),
+            new Date(`${bookingStartDate}T00:00:00`).toISOString(),
+            new Date(`${bookingEndDate}T23:59:59`).toISOString(),
+          )
+        )}
         noValidate
       >
       <div className="mb-4 flex items-center justify-between">
@@ -42,9 +51,11 @@ const BookingDialog = ({ center, onClose, onConfirm }: BookingDialogProps) => {
       <img src={center.image} alt={center.name} className="mb-4 h-36 w-full rounded-xl object-cover" />
       <h3 className="font-bold">{center.name}</h3>
       <p className="mt-1 text-sm text-[#778691]">{center.location}</p>
-      <p className="mt-4 text-sm">
-        Monthly plans start from <strong>₹{center.price.toLocaleString("en-IN")}</strong>.
-      </p>
+      {center.price > 0 && (
+        <p className="mt-4 text-sm">
+          Monthly plans start from <strong>₹{center.price.toLocaleString("en-IN")}</strong>.
+        </p>
+      )}
       {center.pricePlans &&
         (center.pricePlans.hourly > 0 || center.pricePlans.daily > 0) && (
           <p className="mt-1 text-xs text-[#778691]">
@@ -71,10 +82,37 @@ const BookingDialog = ({ center, onClose, onConfirm }: BookingDialogProps) => {
       </label>
       {errors.childName && <p id="booking-child-name-error" role="alert" className="mt-1 text-xs text-rose-700">{errors.childName.message}</p>}
       <p className="mt-3 rounded-lg border border-[#f1e4c9] bg-[#fff9ed] p-3 text-xs leading-5 text-[#785c31]">
-        {center.id === -1
-          ? "Preview mode: this request is saved in this browser and appears in the daycare workspace. A live booking API is not connected."
-          : "Demo mode: this request is stored only for this page session. A booking API is not connected."}
-      </p>
+          Your request will be sent securely to the daycare for confirmation.
+        </p>
+        <label className="mt-4 block text-sm font-semibold text-[#526777]" htmlFor="booking-start-date">
+          Booking start date
+          <input
+            id="booking-start-date"
+            type="date"
+            min={today}
+            aria-invalid={Boolean(errors.bookingStartDate)}
+            aria-describedby={errors.bookingStartDate ? "booking-start-error" : undefined}
+            {...register("bookingStartDate", { required: "Choose a booking start date." })}
+            className="mt-2 h-11 w-full rounded-xl border border-[#d8e6e0] px-3 text-sm font-normal outline-none focus:border-[#278a70] focus:ring-4 focus:ring-[#278a70]/10"
+          />
+        </label>
+        {errors.bookingStartDate && <p id="booking-start-error" role="alert" className="mt-1 text-xs text-rose-700">{errors.bookingStartDate.message}</p>}
+        <label className="mt-4 block text-sm font-semibold text-[#526777]" htmlFor="booking-end-date">
+          Booking end date
+          <input
+            id="booking-end-date"
+            type="date"
+            min={startDate || today}
+            aria-invalid={Boolean(errors.bookingEndDate)}
+            aria-describedby={errors.bookingEndDate ? "booking-end-error" : undefined}
+            {...register("bookingEndDate", {
+              required: "Choose a booking end date.",
+              validate: (value) => value >= startDate || "The end date must be on or after the start date.",
+            })}
+            className="mt-2 h-11 w-full rounded-xl border border-[#d8e6e0] px-3 text-sm font-normal outline-none focus:border-[#278a70] focus:ring-4 focus:ring-[#278a70]/10"
+          />
+        </label>
+        {errors.bookingEndDate && <p id="booking-end-error" role="alert" className="mt-1 text-xs text-rose-700">{errors.bookingEndDate.message}</p>}
       <button
         type="submit"
         className="mt-6 w-full rounded-xl bg-[#278a70] py-3 font-semibold text-white shadow-sm transition hover:bg-[#1f755f]"

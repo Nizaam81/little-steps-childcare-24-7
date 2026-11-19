@@ -23,6 +23,7 @@ interface AdminLoginForm {
 
 interface AdminLoginResponse {
   token: string;
+  refreshToken: string;
   admin: {
     email: string;
   };
@@ -54,8 +55,12 @@ const AdminLogin = () => {
       if (!response.data.token) {
         throw new Error("The login response did not include an authentication token.");
       }
+      if (!response.data.refreshToken) {
+        throw new Error("The login response did not include a refresh token.");
+      }
 
       localStorage.setItem("adminToken", response.data.token);
+      localStorage.setItem("adminRefreshToken", response.data.refreshToken);
       toast.success(
         `Welcome back, ${response.data.admin.email || "Admin"}!`,
       );

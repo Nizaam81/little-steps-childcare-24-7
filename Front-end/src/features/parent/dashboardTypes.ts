@@ -1,5 +1,7 @@
 export type Daycare = {
-  id: number;
+  id: string | number;
+  serverId?: string;
+  district?: string;
   name: string;
   location: string;
   image: string;
@@ -19,17 +21,23 @@ export type Daycare = {
     monthly: number;
   };
   availabilitySlots?: { startTime: string; endTime: string }[];
+  availableDays?: string[];
+  photos?: { id: string; url: string }[];
 };
 
 export type Booking = {
   id: string;
   center: Daycare;
-  status: "Active" | "Pending" | "Declined";
+  status: "Active" | "Accepted" | "Pending" | "Declined";
   plan: string;
+  bookingStartDate?: string;
+  bookingEndDate?: string;
+  cameraAccessStatus?: "not_requested" | "pending" | "approved" | "rejected";
 };
 
 export type DashboardFilters = {
   search: string;
+  location: string;
   age: string;
   timing: string;
   only24: boolean;

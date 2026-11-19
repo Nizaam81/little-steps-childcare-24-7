@@ -1,11 +1,9 @@
 import { useState } from "react";
 import {
-  Baby,
   Bell,
   CalendarDays,
   Camera,
   ChevronRight,
-  CreditCard,
   Heart,
   History,
   LogOut,
@@ -15,10 +13,12 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import type { ParentNotification } from "../parentApi";
 
 type DashboardHeaderProps = {
   profileName: string;
   unreadNotifications: number;
+  notifications: ParentNotification[];
   onMarkNotificationsRead: () => void;
   onSignOut: () => void;
   onOpenSettings: (section?: string) => void;
@@ -28,6 +28,7 @@ type DashboardHeaderProps = {
 const DashboardHeader = ({
   profileName,
   unreadNotifications,
+  notifications,
   onMarkNotificationsRead,
   onSignOut,
   onOpenSettings,
@@ -75,21 +76,27 @@ const DashboardHeader = ({
                   <h2 className="font-bold">Notifications</h2>
                   <span className="text-xs text-[#778691]">{unreadNotifications} unread</span>
                 </div>
-                <ul className="mt-3 space-y-3 text-sm text-[#687a88]">
-                  <li className="flex items-start gap-2">
-                    <CalendarDays size={16} className="mt-0.5 shrink-0 text-[#278a70]" />
-                    Your childcare dashboard is ready to explore.
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Heart size={16} className="mt-0.5 shrink-0 text-[#278a70]" />
-                    Save centers to compare them later.
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Baby size={16} className="mt-0.5 shrink-0 text-[#278a70]" />
-                    Check center details before requesting a booking.
-                  </li>
-                </ul>
-                {unreadNotifications > 0 && (
+                {notifications.length === 0 ? (
+                  <p className="mt-4 rounded-xl bg-[#f6f9f7] p-3 text-sm text-[#687a88]">You’re all caught up. New request updates will appear here.</p>
+                ) : (
+                  <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto text-sm text-[#687a88]">
+                    {notifications.slice(0, 8).map((notification) => (
+                      <li key={notification.id} className={`flex items-start gap-2 rounded-xl p-2 ${notification.read ? "" : "bg-[#f0f8f4]"}`}>
+                        {notification.type === "camera_access"
+                          ? <Camera size={16} className="mt-0.5 shrink-0 text-[#278a70]" />
+                          : notification.type === "booking"
+                            ? <CalendarDays size={16} className="mt-0.5 shrink-0 text-[#278a70]" />
+                            : <Bell size={16} className="mt-0.5 shrink-0 text-[#278a70]" />}
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-[#26384b]">{notification.title}</span>
+                          <span className="mt-0.5 block">{notification.message}</span>
+                          <span className="mt-1 block text-[11px] text-[#81929b]">{new Date(notification.createdAt).toLocaleString()}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {unreadNotifications > 0 && notifications.length > 0 && (
                   <button
                     className="mt-4 w-full rounded-lg bg-[#e5f4ee] px-3 py-2 text-sm font-semibold text-[#237960] transition hover:bg-[#d7eee4]"
                     onClick={() => {
@@ -191,10 +198,8 @@ const DashboardHeader = ({
             </p>
             {[
               { label: "Booking history", section: "bookings", Icon: History },
-              { label: "Payment history & refunds", section: "payments", Icon: CreditCard },
               { label: "Camera access", section: "camera-access", Icon: Camera },
               { label: "Caregiver recommendations", section: "caregivers", Icon: Sparkles },
-              { label: "Subscription", section: "subscription", Icon: CalendarDays },
             ].map(({ label, section, Icon }) => (
               <button
                 key={section}

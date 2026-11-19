@@ -61,6 +61,7 @@ export default function ProviderLogin() {
   const onSubmit = async (form: ProviderLoginForm) => {
     setLoginResult(null);
     localStorage.removeItem("providerToken");
+    localStorage.removeItem("providerRefreshToken");
 
     try {
       const result = await loginProvider(form.email, form.password);
@@ -82,7 +83,11 @@ export default function ProviderLogin() {
             "The server approved this account but did not return an access token.",
           );
         }
+        if (typeof result.refreshToken !== "string" || !result.refreshToken) {
+          throw new Error("The server approved this account but did not return a refresh token.");
+        }
         localStorage.setItem("providerToken", result.token);
+        localStorage.setItem("providerRefreshToken", result.refreshToken);
         localStorage.setItem(
           providerIdentityStorageKey,
           JSON.stringify({

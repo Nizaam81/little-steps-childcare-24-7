@@ -31,6 +31,9 @@ import { useForm, useWatch } from "react-hook-form";
 import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../../utils/api-error-message";
+import { confirmWithToast } from "../../utils/confirm-with-toast";
+import { adminApi } from "./adminApi";
+import { clearAuthSession } from "../auth/authSession";
 import {
   fetchProviderApplications,
   fetchProviderDocument,
@@ -77,51 +80,12 @@ function handleAdminApiError(
   fallback: string,
 ) {
   if (axios.isAxiosError(error) && error.response?.status === 401) {
-    localStorage.removeItem("adminToken");
+    clearAuthSession({ access: "adminToken", refresh: "adminRefreshToken" });
     toast.error("Your admin session expired. Please sign in again.");
     navigate("/admin/login", { replace: true });
     return;
   }
   toast.error(getApiErrorMessage(error, fallback));
-}
-
-function confirmWithToast(message: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    toast.custom(
-      (t) => (
-        <div
-          role="group"
-          aria-label="Confirm permanent deletion"
-          className="flex w-[360px] max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-800 shadow-lg"
-        >
-          <p>{message}</p>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                toast.dismiss(t.id);
-                resolve(false);
-              }}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                toast.dismiss(t.id);
-                resolve(true);
-              }}
-              className="rounded-lg bg-rose-600 px-3 py-1.5 font-semibold text-white hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
-            >
-              Remove
-            </button>
-          </div>
-        </div>
-      ),
-      { duration: Infinity },
-    );
-  });
 }
 
 const navigation = [
@@ -526,7 +490,7 @@ function ApplicationReviewDialog({
       .catch((error: unknown) => {
         if (!active) return;
         if (axios.isAxiosError(error) && error.response?.status === 401) {
-          localStorage.removeItem("adminToken");
+          clearAuthSession({ access: "adminToken", refresh: "adminRefreshToken" });
           toast.error("Your admin session expired. Please sign in again.");
           navigate("/admin/login", { replace: true });
           return;
@@ -1328,8 +1292,13 @@ export default function AdminDashboard() {
   const [page, setPage] = useState(1);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const signOut = () => {
-    localStorage.removeItem("adminToken");
+  const signOut = async () => {
+    try {
+      await adminApi.post("/logout");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Your admin session could not be revoked on the server."));
+    }
+    clearAuthSession({ access: "adminToken", refresh: "adminRefreshToken" });
     toast.success("You have signed out.");
     navigate("/admin/login", { replace: true });
   };

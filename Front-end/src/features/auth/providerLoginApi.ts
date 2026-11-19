@@ -1,4 +1,5 @@
 import axios from "axios";
+import { installAuthInterceptors } from "./authSession";
 
 export type ProviderLoginStatus =
   | "pending_verification"
@@ -18,15 +19,20 @@ export interface ProviderLoginResponse {
   };
   dashboardAccess: boolean;
   token: string | null;
+  refreshToken?: string | null;
 }
 
 const apiBaseUrl = (
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
 
-const providerApi = axios.create({
+export const providerApi = axios.create({
   baseURL: `${apiBaseUrl}/api/childcare`,
   headers: { "Content-Type": "application/json" },
+});
+installAuthInterceptors(providerApi, {
+  access: "providerToken",
+  refresh: "providerRefreshToken",
 });
 
 export async function loginProvider(email: string, password: string) {

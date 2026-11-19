@@ -7,6 +7,7 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import { useState } from "react";
 import type { ChangeEvent } from "react";
 import type {
   CurrentLocation,
@@ -14,47 +15,69 @@ import type {
   Daycare,
 } from "../dashboardTypes";
 import DaycareCard from "./DaycareCard";
+import ResponsivePagination from "../../../components/ResponsivePagination";
 
 type DaycareDiscoveryProps = {
   centers: Daycare[];
   filters: DashboardFilters;
-  favorites: number[];
+  favorites: Array<string | number>;
+  locations: string[];
   currentLocation: CurrentLocation;
   onFiltersChange: (filters: DashboardFilters) => void;
   onRetryLocation: () => void;
-  onToggleFavorite: (id: number) => void;
+  onToggleFavorite: (id: string | number) => void;
   onBook: (center: Daycare) => void;
+  onViewDetails: (center: Daycare) => void;
+  onReview: (center: Daycare) => void;
+  activeBookingCentreId?: string;
+  hasActiveBooking: boolean;
 };
 
 const DaycareDiscovery = ({
   centers,
   filters,
   favorites,
+  locations,
   currentLocation,
   onFiltersChange,
   onRetryLocation,
   onToggleFavorite,
   onBook,
+  onViewDetails,
+  onReview,
+  activeBookingCentreId,
+  hasActiveBooking,
 }: DaycareDiscoveryProps) => {
+  const [page, setPage] = useState(1);
+  const pageSize = 6;
+  const pageCount = Math.ceil(centers.length / pageSize);
+  const resetPage = () => setPage(1);
+  const visibleCentres = centers.slice((page - 1) * pageSize, page * pageSize);
   const updateFilter = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = event.target;
+    resetPage();
     onFiltersChange({
       ...filters,
       [name]: name === "maxPrice" ? Number(value) : value,
     });
   };
 
-  const clearFilters = () => onFiltersChange({
-    search: "",
-    age: "All",
-    timing: "All",
-    only24: false,
-    maxPrice: 6000,
-    sort: "recommended",
-  });
+  const clearFilters = () => {
+    resetPage();
+    onFiltersChange({
+      search: "",
+      location: "All",
+      age: "All",
+      timing: "All",
+      only24: false,
+      maxPrice: 6000,
+      sort: "recommended",
+    });
+  };
 
   const activeFilterCount = [
     filters.age !== "All",
+    filters.location !== "All",
     filters.timing !== "All",
     filters.only24,
     filters.maxPrice !== 6000,
@@ -68,7 +91,7 @@ const DaycareDiscovery = ({
         <p className="mt-2 text-sm text-[#687a88]">Search, compare and choose trusted childcare centers.</p>
       </div>
 
-      <div className="grid gap-4 rounded-3xl border border-[#e3ece7] bg-white p-4 shadow-sm sm:p-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+      <div className="grid gap-4 rounded-3xl border border-[#e3ece7] bg-white p-4 shadow-sm sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(190px,0.6fr)_minmax(280px,0.9fr)]">
         <div className="relative self-start">
           <Search className="absolute left-3 top-3.5 text-[#81929b]" size={20} />
           <input
@@ -79,6 +102,19 @@ const DaycareDiscovery = ({
             aria-label="Search daycare or location"
             className="w-full rounded-xl border border-[#dce8e2] bg-[#f8faf9] py-3 pl-11 pr-4 text-sm text-[#26384b] outline-none placeholder:text-[#94a3ad] focus:border-[#278a70] focus:ring-2 focus:ring-[#d7eee4]"
           />
+        </div>
+        <div>
+          <label htmlFor="location-filter" className="mb-2 block text-xs font-bold uppercase tracking-wide text-[#687a88]">Daycare location</label>
+          <select
+            id="location-filter"
+            name="location"
+            value={filters.location}
+            onChange={updateFilter}
+            className="w-full rounded-xl border border-[#dce8e2] bg-white p-3 text-sm font-medium text-[#26384b] outline-none focus:border-[#278a70] focus:ring-2 focus:ring-[#d7eee4]"
+          >
+            <option value="All">All locations</option>
+            {locations.map((location) => <option key={location} value={location}>{location}</option>)}
+          </select>
         </div>
         <div className="rounded-2xl border border-[#dcece5] bg-[#f6faf8] p-4">
           <div className="flex items-start gap-3">
@@ -105,7 +141,7 @@ const DaycareDiscovery = ({
                     </span>
                   </p>
                   <p className="mt-1 text-xs leading-5 text-[#687a88]">
-                    Kept in this browser. Sample centers below aren't matched to your coordinates.
+                    Search by area or choose a daycare location. Centre listings use their registered address.
                   </p>
                 </>
               )}
@@ -172,7 +208,10 @@ const DaycareDiscovery = ({
             <input
               type="checkbox"
               checked={filters.only24}
-              onChange={(event) => onFiltersChange({ ...filters, only24: event.target.checked })}
+              onChange={(event) => {
+                resetPage();
+                onFiltersChange({ ...filters, only24: event.target.checked });
+              }}
               className="h-4 w-4 accent-[#278a70]"
             />
             <span>
@@ -211,17 +250,22 @@ const DaycareDiscovery = ({
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {centers.map((center) => (
+            {visibleCentres.map((center) => (
               <DaycareCard
                 key={center.id}
                 center={center}
                 isFavorite={favorites.includes(center.id)}
                 onToggleFavorite={onToggleFavorite}
                 onBook={onBook}
+                onViewDetails={onViewDetails}
+                onReview={onReview}
+                hasActiveBooking={hasActiveBooking}
+                isActiveBookingCentre={Boolean(center.serverId && center.serverId === activeBookingCentreId)}
               />
             ))}
           </div>
         )}
+        <ResponsivePagination page={page} pageCount={pageCount} onPageChange={setPage} />
       </div>
     </section>
   );

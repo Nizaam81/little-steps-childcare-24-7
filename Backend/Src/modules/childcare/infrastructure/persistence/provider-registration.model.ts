@@ -44,6 +44,7 @@ const providerRegistrationSchema = new Schema(
       required: true,
     },
     isActive: { type: Boolean, default: true },
+    isAcceptingBookings: { type: Boolean, default: true },
     reviewNotes: { type: String, default: "" },
     reviewedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
     reviewedAt: { type: Date },

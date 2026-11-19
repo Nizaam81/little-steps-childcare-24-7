@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { AdminSessionTokenService } from "../../application/services/admin-session-token.service.js";
+import type { AuthTokenService } from "../../../../shared/services/auth-token.service.js";
 import type { GetProviderApplicationDocumentUseCase } from "../../application/use-cases/get-provider-application-document.usecase.js";
 import type { ListProviderApplicationsUseCase } from "../../application/use-cases/list-provider-applications.usecase.js";
 import type { LoginAdminUseCase } from "../../application/use-cases/login-admin.usecase.js";
@@ -19,7 +19,7 @@ import {
 export class AdminController {
   constructor(
     private readonly loginAdmin: LoginAdminUseCase,
-    private readonly tokens: AdminSessionTokenService,
+    private readonly tokens: AuthTokenService,
     private readonly listApplications: ListProviderApplicationsUseCase,
     private readonly reviewApplication: ReviewProviderApplicationUseCase,
     private readonly getApplicationDocument: GetProviderApplicationDocumentUseCase,
@@ -38,15 +38,17 @@ export class AdminController {
 
     try {
       const result = await this.loginAdmin.execute(parsed.data);
-      const token = this.tokens.issue({
-        adminId: result.admin.id,
+      const session = await this.tokens.issueSession({
+        subject: result.admin.id,
         email: result.admin.email,
-        expiresInSeconds: result.expiresInSeconds,
+        role: "admin",
+        accessExpiresInSeconds: result.expiresInSeconds,
       });
       return response.status(200).json({
-        token,
+        ...session,
+        token: session.accessToken,
         admin: result.admin,
-        expiresInSeconds: result.expiresInSeconds,
+        expiresInSeconds: session.expiresInSeconds,
       });
     } catch (error: unknown) {
       if (
@@ -65,10 +67,17 @@ export class AdminController {
     }
   };
 
-  logout = (_request: Request, response: Response) => {
-    return response.status(200).json({
-      message: "Logged out successfully. Remove the access token from the client.",
-    });
+  logout = async (request: Request, response: Response) => {
+    if (!request.auth) {
+      return response.status(401).json({ message: "Admin authentication is required." });
+    }
+    try {
+      await this.tokens.revokeSession(request.auth);
+      return response.status(200).json({ message: "Logged out successfully." });
+    } catch (error: unknown) {
+      console.error("Admin logout failed:", error);
+      return response.status(500).json({ message: "Unable to log out right now." });
+    }
   };
 
   listProviderApplications = async (request: Request, response: Response) => {

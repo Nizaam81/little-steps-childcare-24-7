@@ -7,7 +7,9 @@ import {
   CalendarDays,
   Check,
   Clock3,
+  CreditCard,
   DollarSign,
+  ImagePlus,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -16,20 +18,38 @@ import {
   ShieldCheck,
   Trash2,
   Users,
+  Video,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
   readProviderIdentity,
-  readProviderWorkspace,
-  saveProviderWorkspace,
   type BookingRequest,
   type Caregiver,
+  type DaycarePhoto,
   type ProviderCentreProfile,
   type ProviderIdentity,
   type ProviderWorkspaceData,
 } from "./providerWorkspace";
+import {
+  addProviderCaregiver,
+  deleteDaycarePhoto,
+  deleteRejectedProviderBooking,
+  decideProviderCameraAccess,
+  decideProviderBooking,
+  fetchProviderWorkspace,
+  removeProviderCaregiver,
+  saveProviderProfile,
+  uploadDaycarePhoto,
+} from "./providerWorkspaceApi";
+import ResponsivePagination from "../../components/ResponsivePagination";
+import { providerApi } from "../auth/providerLoginApi";
+import { clearAuthSession } from "../auth/authSession";
+import { getApiErrorMessage } from "../../utils/api-error-message";
+import { confirmWithToast } from "../../utils/confirm-with-toast";
+import ProviderSubscription from "./ProviderSubscription";
 
 type DashboardSection =
   | "overview"
@@ -37,7 +57,8 @@ type DashboardSection =
   | "team"
   | "availability"
   | "bookings"
-  | "earnings";
+  | "earnings"
+  | "subscription";
 
 const navigation: { id: DashboardSection; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -46,9 +67,11 @@ const navigation: { id: DashboardSection; label: string; icon: typeof LayoutDash
   { id: "availability", label: "Availability & pricing", icon: CalendarDays },
   { id: "bookings", label: "Booking requests", icon: Bell },
   { id: "earnings", label: "Earnings", icon: DollarSign },
+  { id: "subscription", label: "Subscription", icon: CreditCard },
 ];
 
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const pageSizeByList = { caregivers: 6, slots: 5, bookings: 8, recent: 3 };
 const emptyCentreProfile: ProviderCentreProfile = {
   name: "",
   address: "",
@@ -72,30 +95,6 @@ type PricingFormValues = Pick<
   ProviderCentreProfile,
   "hourlyPrice" | "dailyPrice" | "monthlyPrice"
 >;
-
-function createWorkspace(identity: ProviderIdentity): ProviderWorkspaceData {
-  return {
-    profile: {
-      name: identity.centreName,
-      address: "",
-      district: "",
-      openingTime: "",
-      closingTime: "",
-      capacity: 0,
-      hourlyPrice: 0,
-      dailyPrice: 0,
-      monthlyPrice: 0,
-      ageGroups: ["Infant", "Toddler", "Preschool"],
-      careTypes: ["Day care"],
-      availabilitySlots: [],
-      description: "",
-      isAcceptingBookings: true,
-    },
-    caregivers: [],
-    bookings: [],
-    availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-  };
-}
 
 function StatusPill({ status }: { status: BookingRequest["status"] }) {
   const classes = {
@@ -121,9 +120,7 @@ export default function ProviderDashboard() {
       const identity = readProviderIdentity();
       return {
         identity,
-        workspace: identity
-          ? readProviderWorkspace(identity.id) ?? createWorkspace(identity)
-          : null,
+        workspace: null,
         error: "",
       };
     } catch (error) {
@@ -136,9 +133,22 @@ export default function ProviderDashboard() {
   });
   const identity = initialState.identity;
   const [workspace, setWorkspace] = useState<ProviderWorkspaceData | null>(
-    initialState.workspace,
+    null,
   );
-  const [activeSection, setActiveSection] = useState<DashboardSection>("overview");
+  const [workspaceLoadError, setWorkspaceLoadError] = useState("");
+  const [activeSection, setActiveSection] = useState<DashboardSection>(() =>
+    new URLSearchParams(window.location.search).get("section") === "subscription"
+      ? "subscription"
+      : "overview",
+  );
+  const [deletingBookingId, setDeletingBookingId] = useState<string | null>(null);
+  const [listPages, setListPages] = useState({
+    caregivers: 1,
+    slots: 1,
+    bookings: 1,
+    recent: 1,
+  });
+  const [photoUploading, setPhotoUploading] = useState(false);
   const centreForm = useForm<ProviderCentreProfile>({
     mode: "onTouched",
     defaultValues: initialState.workspace?.profile ?? emptyCentreProfile,
@@ -159,47 +169,51 @@ export default function ProviderDashboard() {
     mode: "onTouched",
     defaultValues: { availableDays: initialState.workspace?.availableDays ?? [] },
   });
+  const resetCentreForm = centreForm.reset;
+  const resetPricingForm = pricingForm.reset;
+  const resetScheduleForm = scheduleForm.reset;
 
   useEffect(() => {
-    if (!localStorage.getItem("providerToken")) {
+    if (!localStorage.getItem("providerToken") && !localStorage.getItem("providerRefreshToken")) {
       navigate("/provider/login", { replace: true });
       return;
     }
 
     if (initialState.error) {
       toast.error(initialState.error);
-      localStorage.removeItem("providerToken");
+      clearAuthSession({ access: "providerToken", refresh: "providerRefreshToken" });
       navigate("/provider/login", { replace: true });
       return;
     }
     if (!identity) {
-      localStorage.removeItem("providerToken");
+      clearAuthSession({ access: "providerToken", refresh: "providerRefreshToken" });
       navigate("/provider/login", { replace: true });
+      return;
     }
-  }, [identity, initialState.error, navigate]);
-
-  useEffect(() => {
-    if (!identity || !workspace) return;
-    try {
-      saveProviderWorkspace(identity.id, workspace);
-    } catch {
-      toast.error("Your changes could not be saved in this browser.");
-    }
-  }, [identity, workspace]);
-
-  useEffect(() => {
-    if (!identity) return;
-    const syncWorkspace = () => {
-      try {
-        const latestWorkspace = readProviderWorkspace(identity.id);
-        if (latestWorkspace) setWorkspace(latestWorkspace);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Unable to refresh daycare requests.");
-      }
+    let active = true;
+    void fetchProviderWorkspace()
+      .then((loadedWorkspace) => {
+        if (!active) return;
+        setWorkspaceLoadError("");
+        setWorkspace(loadedWorkspace);
+        resetCentreForm(loadedWorkspace.profile);
+        resetPricingForm(loadedWorkspace.profile);
+        resetScheduleForm({ availableDays: loadedWorkspace.availableDays });
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          clearAuthSession({ access: "providerToken", refresh: "providerRefreshToken" });
+          navigate("/provider/login", { replace: true });
+          return;
+        }
+        setWorkspaceLoadError(getApiErrorMessage(error, "Unable to load your daycare workspace."));
+        toast.error(getApiErrorMessage(error, "Unable to load your daycare workspace."));
+      });
+    return () => {
+      active = false;
     };
-    window.addEventListener("storage", syncWorkspace);
-    return () => window.removeEventListener("storage", syncWorkspace);
-  }, [identity]);
+  }, [identity, initialState.error, navigate, resetCentreForm, resetPricingForm, resetScheduleForm]);
 
   const pendingCount = useMemo(
     () => workspace?.bookings.filter((booking) => booking.status === "Pending").length ?? 0,
@@ -210,14 +224,28 @@ export default function ProviderDashboard() {
     setWorkspace((current) => current ? update(current) : current);
   };
 
-  const signOut = () => {
-    localStorage.removeItem("providerToken");
+  const signOut = async () => {
+    try {
+      await providerApi.post("/logout");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Your session could not be revoked on the server."));
+    }
+    clearAuthSession({ access: "providerToken", refresh: "providerRefreshToken" });
     localStorage.removeItem("providerIdentity");
     toast.success("You have signed out.");
     navigate("/provider/login", { replace: true });
   };
 
-  const changeBookingStatus = (id: string, status: BookingRequest["status"]) => {
+  const changeBookingStatus = async (
+    id: string,
+    status: Exclude<BookingRequest["status"], "Pending">,
+  ) => {
+    try {
+      await decideProviderBooking(id, status);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to update this booking request."));
+      return;
+    }
     updateWorkspace((current) => ({
       ...current,
       bookings: current.bookings.map((booking) =>
@@ -227,6 +255,43 @@ export default function ProviderDashboard() {
     toast.success(status === "Accepted" ? "Booking request accepted." : "Booking request declined.");
   };
 
+  const removeRejectedBooking = async (id: string) => {
+    const confirmed = await confirmWithToast(
+      "Delete this rejected booking request? This cannot be undone.",
+      "Delete",
+    );
+    if (!confirmed) return;
+
+    setDeletingBookingId(id);
+    try {
+      await deleteRejectedProviderBooking(id);
+      setWorkspace((current) => current
+        ? { ...current, bookings: current.bookings.filter((booking) => booking.id !== id) }
+        : current);
+      const remainingCount = Math.max(0, (workspace?.bookings.length ?? 1) - 1);
+      setListPages((current) => ({
+        ...current,
+        bookings: Math.min(current.bookings, Math.max(1, Math.ceil(remainingCount / pageSizeByList.bookings))),
+        recent: Math.min(current.recent, Math.max(1, Math.ceil(remainingCount / pageSizeByList.recent))),
+      }));
+      toast.success("Rejected booking request deleted.");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to delete this rejected booking request."));
+    } finally {
+      setDeletingBookingId(null);
+    }
+  };
+
+  const changeCameraAccessStatus = async (id: string, status: "approved" | "rejected") => {
+    try {
+      await decideProviderCameraAccess(id, status);
+      setWorkspace(await fetchProviderWorkspace());
+      toast.success(status === "approved" ? "Camera-access request approved." : "Camera-access request declined.");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to update this camera-access request."));
+    }
+  };
+
   const watchedCentre = useWatch({ control: centreForm.control });
   const watchedAvailableDays = useWatch({
     control: scheduleForm.control,
@@ -234,6 +299,33 @@ export default function ProviderDashboard() {
   });
 
   if (!identity || !workspace) {
+    if (workspaceLoadError) {
+      return (
+        <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f5f8f6] p-6 text-center">
+          <p role="alert" className="max-w-md text-sm font-medium text-slate-700">{workspaceLoadError}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setWorkspaceLoadError("");
+              void fetchProviderWorkspace()
+                .then((loadedWorkspace) => {
+                  setWorkspace(loadedWorkspace);
+                  centreForm.reset(loadedWorkspace.profile);
+                  pricingForm.reset(loadedWorkspace.profile);
+                  scheduleForm.reset({ availableDays: loadedWorkspace.availableDays });
+                })
+                .catch((error: unknown) => {
+                  setWorkspaceLoadError(getApiErrorMessage(error, "Unable to load your daycare workspace."));
+                  toast.error(getApiErrorMessage(error, "Unable to load your daycare workspace."));
+                });
+            }}
+            className="rounded-xl bg-[#278a70] px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            Try again
+          </button>
+        </main>
+      );
+    }
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f8f6] text-sm font-medium text-slate-600">
         Loading your daycare workspace…
@@ -242,11 +334,17 @@ export default function ProviderDashboard() {
   }
 
   const profile = workspace.profile;
-  const saveProfile = (values: ProviderCentreProfile) => {
+  const saveProfile = async (values: ProviderCentreProfile) => {
+    try {
+      await saveProviderProfile(values, workspace.availableDays);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to save daycare profile changes."));
+      return;
+    }
     updateWorkspace((current) => ({ ...current, profile: values }));
-    toast.success("Centre profile saved in this browser.");
+    toast.success("Daycare profile saved.");
   };
-  const savePricing = (values: PricingFormValues) => {
+  const savePricing = async (values: PricingFormValues) => {
     if (
       !Object.values(values).some(
         (value) => Number.isFinite(value) && value > 0,
@@ -260,40 +358,123 @@ export default function ProviderDashboard() {
       }
       return;
     }
-    updateWorkspace((current) => ({
-      ...current,
-      profile: { ...current.profile, ...values },
-    }));
-    toast.success("Pricing plans saved in this browser.");
+    const updatedProfile = { ...profile, ...values };
+    try {
+      await saveProviderProfile(updatedProfile, workspace.availableDays);
+      updateWorkspace((current) => ({ ...current, profile: updatedProfile }));
+      toast.success("Pricing plans saved.");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to save pricing changes."));
+    }
   };
-  const saveSchedule = (values: { availableDays: string[] }) => {
+  const saveSchedule = async (values: { availableDays: string[] }) => {
+    try {
+      await saveProviderProfile(profile, values.availableDays);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to save your weekly schedule."));
+      return;
+    }
     updateWorkspace((current) => ({ ...current, availableDays: values.availableDays }));
-    toast.success("Weekly schedule saved in this browser.");
+    toast.success("Weekly schedule saved.");
   };
-  const addCaregiver = (values: CaregiverFormValues) => {
+  const addCaregiver = async (values: CaregiverFormValues) => {
+    let caregiver: Caregiver;
+    try {
+      caregiver = await addProviderCaregiver(values);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to add this caregiver."));
+      return;
+    }
     updateWorkspace((current) => ({
       ...current,
-      caregivers: [
-        ...current.caregivers,
-        { ...values, id: crypto.randomUUID() },
-      ],
+      caregivers: [caregiver, ...current.caregivers],
     }));
     caregiverForm.reset();
-    toast.success("Caregiver added to the team.");
+    toast.success("Caregiver profile added to this daycare.");
   };
-  const addAvailabilitySlot = (values: SlotFormValues) => {
+  const addAvailabilitySlot = async (values: SlotFormValues) => {
+    const updatedProfile = {
+      ...profile,
+      availabilitySlots: [
+        ...profile.availabilitySlots,
+        { id: crypto.randomUUID(), ...values },
+      ],
+    };
+    try {
+      await saveProviderProfile(updatedProfile, workspace.availableDays);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to save this availability slot."));
+      return;
+    }
     updateWorkspace((current) => ({
       ...current,
-      profile: {
-        ...current.profile,
-        availabilitySlots: [
-          ...current.profile.availabilitySlots,
-          { id: crypto.randomUUID(), ...values },
-        ],
-      },
+      profile: updatedProfile,
     }));
     slotForm.reset();
     toast.success("Availability slot added.");
+  };
+  const removeAvailabilitySlot = async (slotId: string) => {
+    const updatedProfile = {
+      ...profile,
+      availabilitySlots: profile.availabilitySlots.filter((slot) => slot.id !== slotId),
+    };
+    try {
+      await saveProviderProfile(updatedProfile, workspace.availableDays);
+      updateWorkspace((current) => ({ ...current, profile: updatedProfile }));
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to remove this availability slot."));
+    }
+  };
+  const deleteCaregiver = async (caregiverId: string) => {
+    try {
+      await removeProviderCaregiver(caregiverId);
+      updateWorkspace((current) => ({
+        ...current,
+        caregivers: current.caregivers.filter((caregiver) => caregiver.id !== caregiverId),
+      }));
+      toast.success("Caregiver removed from this daycare.");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to remove this caregiver."));
+    }
+  };
+  const addPhoto = async (file: File) => {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Choose a JPG, PNG or WebP image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Each daycare photo must be 5 MB or smaller.");
+      return;
+    }
+    if (workspace.photos.length >= 4) {
+      toast.error("A daycare can have up to four photos.");
+      return;
+    }
+    setPhotoUploading(true);
+    try {
+      const photo: DaycarePhoto = await uploadDaycarePhoto(file);
+      updateWorkspace((current) => ({ ...current, photos: [...current.photos, photo] }));
+      toast.success("Daycare photo uploaded.");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to upload this daycare photo."));
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+  const removePhoto = async (photoId: string) => {
+    try {
+      await deleteDaycarePhoto(photoId);
+      updateWorkspace((current) => ({
+        ...current,
+        photos: current.photos.filter((photo) => photo.id !== photoId),
+      }));
+      toast.success("Daycare photo removed.");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to remove this daycare photo."));
+    }
+  };
+  const changeListPage = (list: keyof typeof listPages, page: number) => {
+    setListPages((current) => ({ ...current, [list]: page }));
   };
 
   const sectionTitle = navigation.find((item) => item.id === activeSection)?.label ?? "Overview";
@@ -387,11 +568,11 @@ export default function ProviderDashboard() {
             <div className="flex items-start gap-3">
               <span className="mt-0.5 rounded-lg bg-white p-2 text-[#278a70]"><ShieldCheck size={18} /></span>
               <div>
-                <p className="text-sm font-bold text-[#276b56]">Workspace preview</p>
-                <p className="mt-1 text-xs leading-5 text-[#53796d]">Profile, team, schedule and booking changes are saved in this browser. Live provider management APIs are not connected yet.</p>
+                <p className="text-sm font-bold text-[#276b56]">Approved daycare workspace</p>
+                <p className="mt-1 text-xs leading-5 text-[#53796d]">Profile, caregiver listings and family booking requests are saved to your account.</p>
               </div>
             </div>
-            <span className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#278a70]">Local demo</span>
+            <span className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#278a70]">Connected</span>
           </div>
 
           {activeSection === "overview" && (
@@ -436,7 +617,9 @@ export default function ProviderDashboard() {
                     <button type="button" onClick={() => setActiveSection("bookings")} className="text-sm font-bold text-[#278a70] hover:underline">View all</button>
                   </div>
                   <div className="mt-5 space-y-3">
-                    {workspace.bookings.slice(0, 3).map((booking) => (
+                    {workspace.bookings
+                      .slice((listPages.recent - 1) * pageSizeByList.recent, listPages.recent * pageSizeByList.recent)
+                      .map((booking) => (
                       <div key={booking.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3.5">
                         <div>
                           <p className="text-sm font-bold">{booking.parentName} <span className="font-normal text-slate-500">· {booking.childName}</span></p>
@@ -447,6 +630,11 @@ export default function ProviderDashboard() {
                     ))}
                     {workspace.bookings.length === 0 && <p className="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">No booking requests yet.</p>}
                   </div>
+                  <ResponsivePagination
+                    page={listPages.recent}
+                    pageCount={Math.ceil(workspace.bookings.length / pageSizeByList.recent)}
+                    onPageChange={(page) => changeListPage("recent", page)}
+                  />
                 </article>
 
                 <article className="rounded-2xl border border-[#e5ece8] bg-white p-5 shadow-sm sm:p-6">
@@ -557,6 +745,45 @@ export default function ProviderDashboard() {
                   <button type="submit" className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#278a70] px-5 text-sm font-bold text-white hover:bg-[#20785f]"><Save size={17} /> Save centre details</button>
                 </div>
               </form>
+              <div className="mt-8 border-t border-slate-100 pt-6">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-extrabold">Daycare photos</h3>
+                    <p className="mt-1 text-sm text-slate-500">Upload up to four photos after registration. JPG, PNG or WebP, max 5 MB each.</p>
+                  </div>
+                  <label className={`inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-4 text-sm font-bold text-white ${photoUploading || workspace.photos.length >= 4 ? "cursor-not-allowed bg-slate-300" : "bg-[#278a70] hover:bg-[#20785f]"}`}>
+                    <ImagePlus size={16} />
+                    {photoUploading ? "Uploading…" : "Add photo"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={photoUploading || workspace.photos.length >= 4}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void addPhoto(file);
+                        event.currentTarget.value = "";
+                      }}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {workspace.photos.map((photo) => (
+                    <figure key={photo.id} className="group relative overflow-hidden rounded-xl border border-slate-200">
+                      <img src={photo.url} alt={`${profile.name} daycare`} className="h-32 w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => void removePhoto(photo.id)}
+                        aria-label="Remove daycare photo"
+                        className="absolute right-2 top-2 rounded-lg bg-white/95 p-2 text-rose-700 shadow hover:bg-rose-50"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </figure>
+                  ))}
+                  {workspace.photos.length === 0 && <p className="col-span-full rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No photos added yet.</p>}
+                </div>
+              </div>
             </section>
           )}
 
@@ -581,7 +808,11 @@ export default function ProviderDashboard() {
                         placeholder={placeholder}
                         aria-invalid={Boolean(caregiverForm.formState.errors[key as keyof CaregiverFormValues])}
                         {...caregiverForm.register(key as keyof CaregiverFormValues, key === "experience"
-                          ? { maxLength: { value: 80, message: "Experience must be 80 characters or fewer." } }
+                          ? {
+                              required: "Enter the caregiver's experience.",
+                              minLength: { value: 1, message: "Enter the caregiver's experience." },
+                              maxLength: { value: 80, message: "Experience must be 80 characters or fewer." },
+                            }
                           : {
                               required: `Enter the caregiver ${key}.`,
                               minLength: { value: 2, message: `Enter at least 2 characters for ${key}.` },
@@ -597,11 +828,13 @@ export default function ProviderDashboard() {
                 </form>
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {workspace.caregivers.map((caregiver) => (
+                {workspace.caregivers
+                  .slice((listPages.caregivers - 1) * pageSizeByList.caregivers, listPages.caregivers * pageSizeByList.caregivers)
+                  .map((caregiver) => (
                   <article key={caregiver.id} className="rounded-2xl border border-[#e5ece8] bg-white p-5 shadow-sm">
                     <div className="flex items-start justify-between">
                       <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-700"><Users size={20} /></span>
-                      <button type="button" aria-label={`Remove ${caregiver.name}`} onClick={() => updateWorkspace((current) => ({ ...current, caregivers: current.caregivers.filter((item) => item.id !== caregiver.id) }))} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={16} /></button>
+                      <button type="button" aria-label={`Remove ${caregiver.name}`} onClick={() => void deleteCaregiver(caregiver.id)} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={16} /></button>
                     </div>
                     <h3 className="mt-4 font-extrabold">{caregiver.name}</h3>
                     <p className="mt-1 text-sm text-[#278a70]">{caregiver.role}</p>
@@ -610,6 +843,11 @@ export default function ProviderDashboard() {
                 ))}
                 {workspace.caregivers.length === 0 && <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3">No caregiver profiles yet. Add your first team member above.</p>}
               </div>
+              <ResponsivePagination
+                page={listPages.caregivers}
+                pageCount={Math.ceil(workspace.caregivers.length / pageSizeByList.caregivers)}
+                onPageChange={(page) => changeListPage("caregivers", page)}
+              />
             </section>
           )}
 
@@ -663,14 +901,21 @@ export default function ProviderDashboard() {
                     <button type="submit" className="mt-4 inline-flex h-10 items-center justify-center gap-1 rounded-lg bg-[#278a70] px-3 text-xs font-bold text-white hover:bg-[#20785f]"><Plus size={15} /> Add slot</button>
                   </form>
                   <div className="mt-3 space-y-2">
-                    {profile.availabilitySlots.map((slot) => (
+                    {profile.availabilitySlots
+                      .slice((listPages.slots - 1) * pageSizeByList.slots, listPages.slots * pageSizeByList.slots)
+                      .map((slot) => (
                       <div key={slot.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
                         <span>{slot.startTime}–{slot.endTime}</span>
-                        <button type="button" onClick={() => updateWorkspace((current) => ({ ...current, profile: { ...current.profile, availabilitySlots: current.profile.availabilitySlots.filter((item) => item.id !== slot.id) } }))} aria-label={`Remove ${slot.startTime} to ${slot.endTime} slot`} className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={15} /></button>
+                        <button type="button" onClick={() => void removeAvailabilitySlot(slot.id)} aria-label={`Remove ${slot.startTime} to ${slot.endTime} slot`} className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={15} /></button>
                       </div>
                     ))}
                     {profile.availabilitySlots.length === 0 && <p className="text-xs text-slate-400">No extra slots added.</p>}
                   </div>
+                  <ResponsivePagination
+                    page={listPages.slots}
+                    pageCount={Math.ceil(profile.availabilitySlots.length / pageSizeByList.slots)}
+                    onPageChange={(page) => changeListPage("slots", page)}
+                  />
                 </div>
                 <p className="mt-4 text-xs text-slate-500">Set the opening and closing times from Centre profile.</p>
               </article>
@@ -722,7 +967,9 @@ export default function ProviderDashboard() {
               </div>
               {workspace.bookings.length ? (
                 <div className="divide-y divide-slate-100">
-                  {workspace.bookings.map((booking) => (
+                  {workspace.bookings
+                    .slice((listPages.bookings - 1) * pageSizeByList.bookings, listPages.bookings * pageSizeByList.bookings)
+                    .map((booking) => (
                     <article key={booking.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -731,13 +978,41 @@ export default function ProviderDashboard() {
                         </div>
                         <p className="mt-1 text-sm text-slate-600">Request for {booking.childName} · {booking.carePlan}</p>
                         <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><CalendarDays size={14} /> {booking.requestedDate}</p>
+                        {booking.bookingStartDate && booking.bookingEndDate && (
+                          <p className="mt-1 text-xs text-slate-500">
+                            Care period: {new Date(booking.bookingStartDate).toLocaleDateString()} – {new Date(booking.bookingEndDate).toLocaleDateString()}
+                          </p>
+                        )}
+                        {booking.cameraAccessStatus && booking.cameraAccessStatus !== "not_requested" && (
+                          <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                            <Video size={14} /> Camera access: {booking.cameraAccessStatus}
+                          </p>
+                        )}
                       </div>
-                      {booking.status === "Pending" && (
-                        <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        {booking.status === "Pending" && (
+                          <>
                           <button type="button" onClick={() => changeBookingStatus(booking.id, "Declined")} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:bg-slate-50"><X size={15} /> Decline</button>
                           <button type="button" onClick={() => changeBookingStatus(booking.id, "Accepted")} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#278a70] px-3 text-xs font-bold text-white hover:bg-[#20785f]"><Check size={15} /> Accept</button>
-                        </div>
-                      )}
+                          </>
+                        )}
+                        {booking.status === "Declined" && (
+                          <button
+                            type="button"
+                            onClick={() => void removeRejectedBooking(booking.id)}
+                            disabled={deletingBookingId === booking.id}
+                            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Trash2 size={15} /> {deletingBookingId === booking.id ? "Deleting…" : "Delete"}
+                          </button>
+                        )}
+                        {booking.cameraAccessStatus === "pending" && (
+                          <>
+                            <button type="button" onClick={() => void changeCameraAccessStatus(booking.id, "rejected")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-700 hover:bg-rose-50">Decline camera access</button>
+                            <button type="button" onClick={() => void changeCameraAccessStatus(booking.id, "approved")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#278a70] px-3 text-xs font-bold text-white hover:bg-[#20785f]">Approve camera access</button>
+                          </>
+                        )}
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -748,6 +1023,11 @@ export default function ProviderDashboard() {
                   <p className="mt-1 text-sm text-slate-500">New family requests will appear here when connected.</p>
                 </div>
               )}
+              <ResponsivePagination
+                page={listPages.bookings}
+                pageCount={Math.ceil(workspace.bookings.length / pageSizeByList.bookings)}
+                onPageChange={(page) => changeListPage("bookings", page)}
+              />
             </section>
           )}
 
@@ -778,6 +1058,8 @@ export default function ProviderDashboard() {
               </article>
             </section>
           )}
+
+          {activeSection === "subscription" && <ProviderSubscription />}
         </main>
       </div>
     </div>

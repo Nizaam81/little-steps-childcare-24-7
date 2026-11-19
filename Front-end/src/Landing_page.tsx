@@ -1,16 +1,14 @@
 
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   ArrowRight,
   CalendarDays,
   Check,
   Clock3,
   Heart,
-  MapPin,
   Menu,
   Moon,
-  Search,
   ShieldCheck,
   Sparkles,
   Sun,
@@ -93,32 +91,8 @@ const steps = [
   },
 ];
 
-const inputClass =
-  "mt-2 w-full min-w-0 rounded-xl border border-[#e1e9e5] bg-white px-3 py-3 text-sm text-[#243649] outline-none transition focus:border-[#29966f] focus:ring-2 focus:ring-[#29966f]/15";
-
 export default function LandingPage() {
-  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [location, setLocation] = useState("");
-  const [careDate, setCareDate] = useState("");
-  const [childAge, setChildAge] = useState("3 years");
-  const [searchMessage, setSearchMessage] = useState("");
-
-  function handleSearch(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!location.trim()) {
-      setSearchMessage("Please enter a location to find childcare.");
-      return;
-    }
-
-    const searchParams = new URLSearchParams({
-      location: location.trim(),
-      childAge,
-    });
-    if (careDate) searchParams.set("careDate", careDate);
-    navigate(`/centers?${searchParams.toString()}`);
-  }
 
   return (
     <main className="min-h-screen overflow-x-clip bg-[#f7faf9] text-[#243649]">
@@ -252,6 +226,61 @@ export default function LandingPage() {
                 Family-first support
               </span>
             </div>
+
+            <div className="mt-8">
+              <h2 className="text-sm font-semibold text-slate-700">
+                What brings you to Little Steps?
+              </h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <a
+                  href="#centers"
+                  className="group flex min-h-36 flex-col justify-between rounded-2xl border border-[#dce9e3] bg-[#f7faf9] p-4 transition hover:border-[#29966f] hover:bg-[#eff8f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#29966f] focus-visible:ring-offset-2"
+                >
+                  <span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-[#29966f]">
+                      For families
+                    </span>
+                    <span className="mt-1 block text-base font-semibold">
+                      I&apos;m looking for childcare
+                    </span>
+                    <span className="mt-1 block text-sm leading-5 text-slate-500">
+                      Find trusted care that fits your family.
+                    </span>
+                  </span>
+                  <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#277e62]">
+                    Explore care
+                    <ArrowRight
+                      size={16}
+                      className="transition-transform group-hover:translate-x-1"
+                    />
+                  </span>
+                </a>
+
+                <Link
+                  to="/provider/register"
+                  className="group flex min-h-36 flex-col justify-between rounded-2xl border border-[#dce9e3] bg-white p-4 transition hover:border-[#29966f] hover:bg-[#eff8f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#29966f] focus-visible:ring-offset-2"
+                >
+                  <span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-[#29966f]">
+                      For childcare providers
+                    </span>
+                    <span className="mt-1 block text-base font-semibold">
+                      I&apos;m a provider
+                    </span>
+                    <span className="mt-1 block text-sm leading-5 text-slate-500">
+                      Share your centre and connect with families.
+                    </span>
+                  </span>
+                  <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#277e62]">
+                    Join Little Steps
+                    <ArrowRight
+                      size={16}
+                      className="transition-transform group-hover:translate-x-1"
+                    />
+                  </span>
+                </Link>
+              </div>
+            </div>
           </div>
 
           <div className="relative mx-auto w-full max-w-[570px]">
@@ -276,76 +305,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Search form */}
-        <div className="mx-auto max-w-[1280px] px-4 pb-10 pt-7 sm:px-6 sm:pt-8 lg:px-8 lg:pb-14">
-          <form
-            onSubmit={handleSearch}
-            className="grid gap-3 rounded-2xl border border-[#e4ece8] bg-white p-4 shadow-[0_8px_35px_rgba(36,54,73,0.05)] sm:p-5 lg:grid-cols-[1.2fr_1fr_0.8fr_auto] lg:items-end lg:gap-4"
-          >
-            <label className="block min-w-0 text-xs font-semibold text-slate-600">
-              <span className="flex items-center gap-2">
-                <MapPin size={15} className="text-[#29966f]" />
-                Where do you need care?
-              </span>
-              <input
-                className={inputClass}
-                value={location}
-                onChange={(event) => setLocation(event.target.value)}
-                placeholder="City or neighborhood"
-                autoComplete="address-level2"
-                aria-label="Childcare location"
-              />
-            </label>
-
-            <label className="block min-w-0 text-xs font-semibold text-slate-600">
-              <span className="flex items-center gap-2">
-                <CalendarDays size={15} className="text-[#29966f]" />
-                When?
-              </span>
-              <input
-                type="date"
-                className={inputClass}
-                value={careDate}
-                min={new Date().toLocaleDateString("en-CA")}
-                onChange={(event) => setCareDate(event.target.value)}
-                aria-label="Date childcare is needed"
-              />
-            </label>
-
-            <label className="block min-w-0 text-xs font-semibold text-slate-600">
-              Child&apos;s age
-              <select
-                className={inputClass}
-                value={childAge}
-                onChange={(event) => setChildAge(event.target.value)}
-              >
-                <option>Infant</option>
-                <option>1 year</option>
-                <option>2 years</option>
-                <option>3 years</option>
-                <option>4 years</option>
-                <option>5+ years</option>
-              </select>
-            </label>
-
-            <button
-              type="submit"
-              className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#243649] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#344c63] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#29966f] focus-visible:ring-offset-2 lg:mb-0.5"
-            >
-              <Search size={17} />
-              Find childcare
-            </button>
-
-            {searchMessage && (
-              <p
-                role="status"
-                className="text-sm text-[#277e62] sm:col-span-2 lg:col-span-4"
-              >
-                {searchMessage}
-              </p>
-            )}
-          </form>
-        </div>
       </section>
 
       {/* Care types */}

@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { ArrowLeft, CircleUserRound, Pencil, ShieldCheck } from "lucide-react";
-import BookingsAndSubscription from "./BookingsAndSubscription";
-import CaregiverRecommendations from "./CaregiverRecommendations";
+import BookingsHistory from "./BookingsHistory";
 import CctvAccess from "./CctvAccess";
-import PaymentsAndRefunds from "./PaymentsAndRefunds";
 import type { Booking, Daycare, ParentProfile } from "../dashboardTypes";
+import { updateParentProfile } from "../parentApi";
+import { getApiErrorMessage } from "../../../utils/api-error-message";
 
 type ParentSettingsProps = {
   bookings: Booking[];
@@ -15,7 +15,6 @@ type ParentSettingsProps = {
   startInEditMode: boolean;
   initialSection?: string;
   onBack: () => void;
-  onManageSubscription: () => void;
   onProfileSaved: (profile: ParentProfile) => void;
 };
 
@@ -26,7 +25,6 @@ const ParentSettings = ({
   startInEditMode,
   initialSection,
   onBack,
-  onManageSubscription,
   onProfileSaved,
 }: ParentSettingsProps) => {
   const [isEditing, setIsEditing] = useState(startInEditMode);
@@ -34,7 +32,7 @@ const ParentSettings = ({
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<ParentProfile>({
     mode: "onTouched",
     defaultValues: profile,
@@ -50,17 +48,22 @@ const ParentSettings = ({
     });
   }, [initialSection]);
 
-  const saveProfile = (values: ParentProfile) => {
+  const saveProfile = async (values: ParentProfile) => {
     const updatedProfile = {
       fullName: values.fullName.trim(),
       email: values.email.trim(),
       phoneNumber: values.phoneNumber.trim(),
     };
 
-    onProfileSaved(updatedProfile);
-    reset(updatedProfile);
-    setIsEditing(false);
-    toast.success("Profile updated for this session. Profile API is not connected.");
+    try {
+      const savedProfile = await updateParentProfile(updatedProfile);
+      onProfileSaved(savedProfile);
+      reset(savedProfile);
+      setIsEditing(false);
+      toast.success("Your profile has been updated.");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to update your profile right now."));
+    }
   };
 
   return (
@@ -137,22 +140,25 @@ const ParentSettings = ({
                   maxLength: { value: 254, message: "Email address is too long." },
                   pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Enter a valid email address." },
                 })}
+                readOnly
                 className="mt-2 w-full rounded-xl border border-[#dce8e2] bg-white px-4 py-3 text-sm font-normal outline-none transition focus:border-[#278a70] focus:ring-2 focus:ring-[#d7eee4]"
                 autoComplete="email"
               />
               {errors.email && <span id="parent-email-error" role="alert" className="mt-1 block text-xs text-rose-700">{errors.email.message}</span>}
+              <span className="mt-1 block text-xs font-normal text-[#778691]">Contact support to change your verified email address.</span>
             </label>
             <label className="text-sm font-semibold text-[#26384b]" htmlFor="parent-phone">
-              Phone number <span className="font-normal text-[#778691]">(optional)</span>
+              Phone number
               <input
                 id="parent-phone"
                 type="tel"
                 aria-invalid={Boolean(errors.phoneNumber)}
                 aria-describedby={errors.phoneNumber ? "parent-phone-error" : undefined}
                 {...register("phoneNumber", {
+                  required: "Enter your phone number.",
+                  minLength: { value: 7, message: "Phone number must contain at least 7 digits." },
                   maxLength: { value: 20, message: "Phone number must be 20 characters or fewer." },
                   validate: (value) =>
-                    !value.trim() ||
                     (/^[+]?[0-9\s()-]+$/.test(value) &&
                       value.replace(/\D/g, "").length >= 7 &&
                       value.replace(/\D/g, "").length <= 15) ||
@@ -176,14 +182,12 @@ const ParentSettings = ({
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="rounded-xl bg-[#278a70] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1f755f]"
               >
-                Save profile
+                {isSubmitting ? "Saving…" : "Save profile"}
               </button>
             </div>
-            <p className="text-xs leading-5 text-[#778691]">
-              Demo mode: changes are kept in the current page session only. Account profile API is not connected.
-            </p>
           </form>
         ) : (
           <div className="grid min-w-0 grid-cols-1 gap-4 p-5 sm:p-6">
@@ -201,22 +205,16 @@ const ParentSettings = ({
             </div>
             <p className="flex items-center gap-2 pt-1 text-xs leading-5 text-[#778691]">
               <ShieldCheck size={15} className="shrink-0 text-[#278a70]" />
-              Demo profile details are only kept in this page session; they are not saved to your account yet.
+              Your verified email is protected. Name and phone updates are saved to your parent account.
             </p>
           </div>
         )}
       </section>
 
-      <BookingsAndSubscription
-        bookings={bookings}
-        onManageSubscription={onManageSubscription}
-      />
-      <PaymentsAndRefunds />
+      <BookingsHistory bookings={bookings} />
       <CctvAccess centers={centers} />
-      <CaregiverRecommendations />
-
       <p className="text-center text-xs text-[#81929b]">
-        Booking, payment, camera-access, and recommendation data shown here are for UI preview only.
+        Booking, camera-access, and recommendation data shown here are for UI preview only.
       </p>
     </main>
   );

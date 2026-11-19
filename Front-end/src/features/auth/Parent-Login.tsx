@@ -46,17 +46,29 @@ export default function Login() {
     setIsSubmitting(true);
 
     try {
-      const response = await apiClient.post<{ token?: unknown; message?: string }>("/login", {
+      const response = await apiClient.post<{
+        token?: unknown;
+        accessToken?: unknown;
+        refreshToken?: unknown;
+        message?: string;
+      }>("/login", {
         email: data.email.trim(),
         password: data.password,
         rememberMe: data.rememberMe,
       });
 
-      if (typeof response.data.token !== "string" || !response.data.token) {
+      const accessToken = typeof response.data.accessToken === "string"
+        ? response.data.accessToken
+        : response.data.token;
+      if (typeof accessToken !== "string" || !accessToken) {
         throw new Error("The login response did not include an authentication token.");
       }
+      if (typeof response.data.refreshToken !== "string" || !response.data.refreshToken) {
+        throw new Error("The login response did not include a refresh token.");
+      }
 
-      localStorage.setItem("parentToken", response.data.token);
+      localStorage.setItem("parentToken", accessToken);
+      localStorage.setItem("parentRefreshToken", response.data.refreshToken);
       toast.success(
         response.data?.message || "Welcome back to Little Steps!"
       );
