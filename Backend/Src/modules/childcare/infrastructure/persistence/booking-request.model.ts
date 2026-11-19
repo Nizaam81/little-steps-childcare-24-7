@@ -16,7 +16,7 @@ const bookingRequestSchema = new Schema(
     },
     cameraAccessRequestedAt: { type: Date },
     note: { type: String, trim: true, maxlength: 1000, default: "" },
-    status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending", index: true },
+    status: { type: String, enum: ["pending", "accepted", "rejected", "canceled"], default: "pending", index: true },
   },
   { timestamps: true },
 );

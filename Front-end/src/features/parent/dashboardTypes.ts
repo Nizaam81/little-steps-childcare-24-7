@@ -28,7 +28,7 @@ export type Daycare = {
 export type Booking = {
   id: string;
   center: Daycare;
-  status: "Active" | "Accepted" | "Pending" | "Declined";
+  status: "Active" | "Accepted" | "Pending" | "Declined" | "Canceled";
   plan: string;
   bookingStartDate?: string;
   bookingEndDate?: string;

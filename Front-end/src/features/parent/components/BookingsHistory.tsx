@@ -37,7 +37,7 @@ const BookingsHistory = ({ bookings }: BookingsHistoryProps) => {
                   <h3 className="font-semibold">{booking.center.name}</h3>
                   <p className="mt-1 text-xs text-[#778691]">{booking.plan}</p>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${booking.status === "Active" ? "bg-[#dcefe5] text-[#237960]" : booking.status === "Declined" ? "bg-rose-50 text-rose-700" : "bg-[#fff4df] text-[#8a5a16]"}`}>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${booking.status === "Active" ? "bg-[#dcefe5] text-[#237960]" : booking.status === "Declined" || booking.status === "Canceled" ? "bg-rose-50 text-rose-700" : "bg-[#fff4df] text-[#8a5a16]"}`}>
                   {booking.status}
                 </span>
               </div>

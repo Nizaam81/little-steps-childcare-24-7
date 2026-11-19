@@ -16,4 +16,5 @@ parentFeaturesRoutes.get("/notifications", controller.listNotifications);
 parentFeaturesRoutes.patch("/notifications/:notificationId/read", controller.markNotificationsRead);
 parentFeaturesRoutes.post("/bookings", controller.createBooking);
 parentFeaturesRoutes.post("/bookings/:bookingId/camera-access", controller.requestCameraAccess);
+parentFeaturesRoutes.delete("/bookings/:bookingId", controller.cancelBooking);
 parentFeaturesRoutes.get("/bookings", controller.listBookings);

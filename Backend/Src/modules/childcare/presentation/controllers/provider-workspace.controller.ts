@@ -136,6 +136,9 @@ export class ProviderWorkspaceController {
     let uploaded: Awaited<ReturnType<typeof uploadDaycarePhoto>> | null = null;
     try {
       const contents = await readFile(file.path);
+      if (contents.length === 0) {
+        return response.status(400).json({ message: "The uploaded image is empty." });
+      }
       const isJpeg = file.mimetype === "image/jpeg" &&
         contents.length >= 3 &&
         contents[0] === 0xff &&

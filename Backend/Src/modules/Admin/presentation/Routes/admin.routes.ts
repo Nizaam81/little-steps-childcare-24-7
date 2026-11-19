@@ -29,6 +29,7 @@ adminRoutes.post("/login", controller.login);
 adminRoutes.use(requireRole("admin"));
 adminRoutes.post("/logout", controller.logout);
 adminRoutes.get("/providers", controller.listProviderApplications);
+adminRoutes.get("/subscriptions", controller.listProviderSubscriptions);
 adminRoutes.get("/centres", controller.listApprovedCentres);
 adminRoutes.patch("/centres/:applicationId/status", controller.updateCentreStatus);
 adminRoutes.delete("/centres/:applicationId", controller.deleteCentre);

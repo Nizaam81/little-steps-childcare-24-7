@@ -16,6 +16,7 @@ const isValidDocumentContent = async (
   document: Express.Multer.File,
 ): Promise<boolean> => {
   const header = await readFile(document.path);
+  if (header.length === 0) return false;
 
   if (document.mimetype === "application/pdf") {
     return header.subarray(0, 5).toString("ascii") === "%PDF-";

@@ -6,6 +6,7 @@ import type { LoginAdminUseCase } from "../../application/use-cases/login-admin.
 import type { ReviewProviderApplicationUseCase } from "../../application/use-cases/review-provider-application.usecase.js";
 import type { ParentRegistrationRepository } from "../../../parents/domain/repositories/parent-registration.repository.js";
 import type { ProviderRegistrationRepository } from "../../../childcare/domain/repositories/provider-registration.repository.js";
+import { ProviderSubscriptionModel } from "../../../subscriptions/infrastructure/persistence/provider-subscription.model.js";
 import {
   adminActiveStatusSchema,
   adminEntityIdSchema,
@@ -179,6 +180,31 @@ export class AdminController {
       return response.status(500).json({
         message: "Unable to retrieve the application document.",
       });
+    }
+  };
+
+  listProviderSubscriptions = async (_request: Request, response: Response) => {
+    try {
+      const subscriptions = await ProviderSubscriptionModel.find()
+        .populate("providerId", "centreName ownerName ownerEmail status isActive")
+        .sort({ updatedAt: -1 });
+      return response.status(200).json({
+        subscriptions: subscriptions.map((subscription) => ({
+          providerId: subscription.providerId,
+          status: subscription.status,
+          currentPeriodStart: subscription.currentPeriodStart,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+          paidThroughDate: subscription.paidThroughDate,
+          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+          stripeCustomerId: subscription.stripeCustomerId,
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+          priceId: subscription.priceId,
+          updatedAt: subscription.updatedAt,
+        })),
+      });
+    } catch (error: unknown) {
+      console.error("Admin provider subscription listing failed:", error);
+      return response.status(500).json({ message: "Unable to load provider subscriptions right now." });
     }
   };
 

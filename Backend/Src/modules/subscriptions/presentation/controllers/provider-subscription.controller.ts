@@ -4,21 +4,14 @@ import Stripe from "stripe";
 import { z } from "zod";
 import { ProviderRegistrationModel } from "../../../childcare/infrastructure/persistence/provider-registration.model.js";
 import { ProviderSubscriptionModel } from "../../infrastructure/persistence/provider-subscription.model.js";
+import { StripeWebhookEventModel } from "../../infrastructure/persistence/stripe-webhook-event.model.js";
+import { isProviderSubscriptionEligible } from "../../application/provider-subscription-access.js";
 
 class StripeBillingConfigurationError extends Error {}
 
 const checkoutSchema = z.object({
   sessionId: z.string().trim().min(1).max(255),
 });
-
-const blockedSubscriptionStatuses = [
-  "active",
-  "trialing",
-  "past_due",
-  "unpaid",
-  "incomplete",
-  "paused",
-];
 
 function createStripeClient(): Stripe {
   const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -41,6 +34,14 @@ async function getConfiguredPrice(stripe: Stripe): Promise<Stripe.Price> {
     : price.product.id;
   if (!price.active || !price.recurring || actualProductId !== productId) {
     throw new StripeBillingConfigurationError("The configured Stripe price must be an active recurring price for the configured product.");
+  }
+  if (
+    price.currency !== "inr" ||
+    price.unit_amount !== 49900 ||
+    price.recurring.interval !== "month" ||
+    price.recurring.interval_count !== 1
+  ) {
+    throw new StripeBillingConfigurationError("The configured Stripe price must be exactly ₹499 INR per month.");
   }
   return price;
 }
@@ -70,12 +71,31 @@ async function saveStripeSubscription(
   const existing = await ProviderSubscriptionModel.findOne({
     stripeSubscriptionId: subscription.id,
   }).select("providerId");
-  const providerId = providerIdOverride ??
+  let providerId = providerIdOverride ??
     subscription.metadata.providerId ??
     existing?.providerId.toString();
+  if (!providerId) {
+    const customerId = getCustomerId(subscription);
+    const customer = await createStripeClient().customers.retrieve(customerId);
+    if (!customer.deleted) {
+      providerId = customer.metadata?.providerId;
+    }
+  }
   if (!providerId || !isValidObjectId(providerId)) return null;
 
   const firstItem = subscription.items.data[0];
+  const periodStart = firstItem?.current_period_start
+    ? new Date(firstItem.current_period_start * 1000)
+    : null;
+  const periodEnd = firstItem?.current_period_end
+    ? new Date(firstItem.current_period_end * 1000)
+    : null;
+  const paidThrough = periodEnd;
+  const graceDays = Number.parseInt(process.env.STRIPE_PAST_DUE_GRACE_DAYS ?? "0", 10);
+  const gracePeriodEnd = ["past_due", "unpaid"].includes(subscription.status) &&
+    paidThrough
+      ? new Date(paidThrough.getTime() + Math.max(0, graceDays) * 24 * 60 * 60 * 1000)
+      : null;
   return ProviderSubscriptionModel.findOneAndUpdate(
     { providerId },
     {
@@ -84,12 +104,13 @@ async function saveStripeSubscription(
         stripeSubscriptionId: subscription.id,
         priceId: firstItem?.price.id ?? "",
         status: subscription.status,
-        currentPeriodStart: firstItem
-          ? new Date(firstItem.current_period_start * 1000)
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+        trialEnd: subscription.trial_end
+          ? new Date(subscription.trial_end * 1000)
           : null,
-        currentPeriodEnd: firstItem
-          ? new Date(firstItem.current_period_end * 1000)
-          : null,
+        gracePeriodEnd,
+        paidThroughDate: paidThrough,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
       },
     },
@@ -114,12 +135,7 @@ export class ProviderSubscriptionController {
       const stripe = createStripeClient();
       const price = await getConfiguredPrice(stripe);
       const subscription = await ProviderSubscriptionModel.findOne({ providerId });
-      const hasAccess = Boolean(
-        subscription &&
-        ["active", "trialing"].includes(subscription.status) &&
-        subscription.currentPeriodEnd &&
-        subscription.currentPeriodEnd.getTime() > Date.now(),
-      );
+      const hasAccess = isProviderSubscriptionEligible(subscription, new Date());
       return response.status(200).json({
         plan: {
           priceId: price.id,
@@ -128,6 +144,7 @@ export class ProviderSubscriptionController {
           interval: price.recurring?.interval ?? null,
           intervalCount: price.recurring?.interval_count ?? 1,
         },
+        hasAccess,
         subscription: subscription
           ? {
               status: subscription.status,
@@ -156,7 +173,7 @@ export class ProviderSubscriptionController {
       if (!provider) return response.status(404).json({ message: "Your approved provider account was not found." });
 
       const currentSubscription = await ProviderSubscriptionModel.findOne({ providerId });
-      if (currentSubscription && blockedSubscriptionStatuses.includes(currentSubscription.status)) {
+      if (isProviderSubscriptionEligible(currentSubscription, new Date())) {
         return response.status(409).json({
           message: "Your provider account already has a subscription. Use Manage billing to update it.",
         });
@@ -164,16 +181,21 @@ export class ProviderSubscriptionController {
 
       const stripe = createStripeClient();
       const price = await getConfiguredPrice(stripe);
-      const session = await stripe.checkout.sessions.create({
+      const checkoutOptions: Stripe.Checkout.SessionCreateParams = {
         mode: "subscription",
         line_items: [{ price: price.id, quantity: 1 }],
-        customer_email: provider.ownerEmail,
         client_reference_id: providerId,
         metadata: { providerId },
         subscription_data: { metadata: { providerId } },
         success_url: providerDashboardUrl("&checkout=success&session_id={CHECKOUT_SESSION_ID}"),
         cancel_url: providerDashboardUrl("&checkout=cancelled"),
-      });
+      };
+      if (currentSubscription?.stripeCustomerId) {
+        checkoutOptions.customer = currentSubscription.stripeCustomerId;
+      } else {
+        checkoutOptions.customer_email = provider.ownerEmail;
+      }
+      const session = await stripe.checkout.sessions.create(checkoutOptions);
       if (!session.url) {
         return response.status(502).json({ message: "Stripe did not provide a checkout URL." });
       }
@@ -242,11 +264,13 @@ export class ProviderSubscriptionController {
         return response.status(409).json({ message: "The completed checkout does not contain a subscription." });
       }
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      const saved = await saveStripeSubscription(subscription, providerId);
-      if (!saved) {
-        return response.status(500).json({ message: "Unable to save the completed provider subscription." });
-      }
-      return response.status(200).json({ status: saved.status });
+      const record = await ProviderSubscriptionModel.findOne({ providerId })
+        .select("status currentPeriodEnd paidThroughDate");
+      const hasAccess = isProviderSubscriptionEligible(record, new Date());
+      return response.status(200).json({
+        status: hasAccess ? subscription.status : "pending",
+        activatedByWebhook: hasAccess,
+      });
     } catch (error: unknown) {
       if (error instanceof StripeBillingConfigurationError) {
         return response.status(503).json({ message: error.message });
@@ -286,20 +310,90 @@ export class ProviderSubscriptionController {
     }
 
     try {
-      if (event.type === "checkout.session.completed") {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const subscriptionId = typeof session.subscription === "string"
-          ? session.subscription
-          : session.subscription?.id;
-        const providerId = session.client_reference_id ?? session.metadata?.providerId;
-        if (subscriptionId && providerId) {
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          await saveStripeSubscription(subscription, providerId);
-        }
-      } else if (event.type.startsWith("customer.subscription.")) {
-        await saveStripeSubscription(event.data.object as Stripe.Subscription);
+      let eventRecord = await StripeWebhookEventModel.findOne({ eventId: event.id });
+      if (eventRecord?.status === "completed") {
+        return response.status(200).json({ received: true });
       }
-      return response.status(200).json({ received: true });
+      if (!eventRecord) {
+        try {
+          eventRecord = await StripeWebhookEventModel.create({
+            eventId: event.id,
+            eventType: event.type,
+            status: "processing",
+          });
+        } catch (error: unknown) {
+          if (error instanceof Error && "code" in error && error.code === 11000) {
+            const duplicate = await StripeWebhookEventModel.findOne({ eventId: event.id });
+            if (duplicate?.status === "completed") {
+              return response.status(200).json({ received: true });
+            }
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      try {
+        if (event.type === "checkout.session.completed") {
+          const session = event.data.object as Stripe.Checkout.Session;
+          const subscriptionId = typeof session.subscription === "string"
+            ? session.subscription
+            : session.subscription?.id;
+          const providerId = session.client_reference_id ?? session.metadata?.providerId;
+          if (subscriptionId && providerId) {
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            await saveStripeSubscription(subscription, providerId);
+          }
+        } else if (event.type === "checkout.session.expired") {
+          const session = event.data.object as Stripe.Checkout.Session;
+          const providerId = session.client_reference_id ?? session.metadata?.providerId;
+          if (providerId && isValidObjectId(providerId)) {
+            await ProviderSubscriptionModel.updateOne(
+              { providerId, status: { $nin: ["active", "trialing"] } },
+              { $set: { status: "incomplete_expired" } },
+            );
+          }
+        } else if (
+          event.type === "customer.subscription.created" ||
+          event.type === "customer.subscription.updated" ||
+          event.type === "customer.subscription.deleted"
+        ) {
+          const subscriptionEvent = event.data.object as Stripe.Subscription;
+          if (event.type === "customer.subscription.deleted") {
+            await saveStripeSubscription(subscriptionEvent);
+          } else {
+            const latestSubscription = await stripe.subscriptions.retrieve(subscriptionEvent.id);
+            await saveStripeSubscription(latestSubscription);
+          }
+        } else if (event.type === "invoice.paid" || event.type === "invoice.payment_failed") {
+          const invoice = event.data.object as Stripe.Invoice;
+          const invoiceData = invoice as unknown as {
+            subscription?: string | { id: string };
+          };
+          const subscriptionId = typeof invoiceData.subscription === "string"
+            ? invoiceData.subscription
+            : invoiceData.subscription?.id;
+          if (subscriptionId) {
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            await saveStripeSubscription(subscription);
+          }
+        }
+
+        await StripeWebhookEventModel.updateOne(
+          { eventId: event.id },
+          { $set: { status: "completed", processedAt: new Date(), lastError: null } },
+        );
+        return response.status(200).json({ received: true });
+      } catch (error: unknown) {
+        await StripeWebhookEventModel.updateOne(
+          { eventId: event.id },
+          { $set: {
+            status: "failed",
+            lastError: error instanceof Error ? error.message : "Webhook processing failed",
+          } },
+        ).catch(() => undefined);
+        throw error;
+      }
     } catch (error: unknown) {
       console.error("Stripe webhook processing failed:", error);
       return response.status(500).json({ message: "Unable to process this Stripe webhook event." });

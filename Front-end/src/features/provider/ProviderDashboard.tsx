@@ -50,6 +50,7 @@ import { clearAuthSession } from "../auth/authSession";
 import { getApiErrorMessage } from "../../utils/api-error-message";
 import { confirmWithToast } from "../../utils/confirm-with-toast";
 import ProviderSubscription from "./ProviderSubscription";
+import { fetchProviderSubscription } from "./providerSubscriptionApi";
 
 type DashboardSection =
   | "overview"
@@ -136,6 +137,7 @@ export default function ProviderDashboard() {
     null,
   );
   const [workspaceLoadError, setWorkspaceLoadError] = useState("");
+  const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
   const [activeSection, setActiveSection] = useState<DashboardSection>(() =>
     new URLSearchParams(window.location.search).get("section") === "subscription"
       ? "subscription"
@@ -191,6 +193,16 @@ export default function ProviderDashboard() {
       return;
     }
     let active = true;
+    void fetchProviderSubscription()
+      .then((billing) => {
+        if (active) {
+          setHasSubscription(billing.hasAccess);
+          if (!billing.hasAccess) setActiveSection("subscription");
+        }
+      })
+      .catch(() => {
+        if (active) setHasSubscription(false);
+      });
     void fetchProviderWorkspace()
       .then((loadedWorkspace) => {
         if (!active) return;
@@ -205,6 +217,12 @@ export default function ProviderDashboard() {
         if (axios.isAxiosError(error) && error.response?.status === 401) {
           clearAuthSession({ access: "providerToken", refresh: "providerRefreshToken" });
           navigate("/provider/login", { replace: true });
+          return;
+        }
+        if (axios.isAxiosError(error) && error.response?.status === 402) {
+          setHasSubscription(false);
+          setActiveSection("subscription");
+          setWorkspaceLoadError("");
           return;
         }
         setWorkspaceLoadError(getApiErrorMessage(error, "Unable to load your daycare workspace."));
@@ -478,6 +496,9 @@ export default function ProviderDashboard() {
   };
 
   const sectionTitle = navigation.find((item) => item.id === activeSection)?.label ?? "Overview";
+  const visibleNavigation = hasSubscription
+    ? navigation
+    : navigation.filter((item) => item.id === "subscription");
 
   return (
     <div className="min-h-screen bg-[#f5f8f6] text-[#26384b]">
@@ -492,7 +513,7 @@ export default function ProviderDashboard() {
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Provider workspace</p>
         </div>
         <nav className="space-y-1 px-3" aria-label="Provider dashboard">
-          {navigation.map(({ id, label, icon: Icon }) => (
+          {visibleNavigation.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
@@ -548,7 +569,7 @@ export default function ProviderDashboard() {
             </div>
           </div>
           <nav className="flex gap-2 overflow-x-auto border-t border-slate-100 px-4 py-2 lg:hidden" aria-label="Provider dashboard sections">
-            {navigation.map(({ id, label }) => (
+            {visibleNavigation.map(({ id, label }) => (
               <button
                 key={id}
                 type="button"
@@ -1034,7 +1055,7 @@ export default function ProviderDashboard() {
           {activeSection === "earnings" && (
             <section className="space-y-5">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                Earnings are a preview only. Payment and booking APIs are not connected, so no real transactions or totals are shown.
+                Earnings summary for completed bookings and approved payments.
               </div>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {[

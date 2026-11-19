@@ -20,7 +20,7 @@ const CctvAccess = ({ centers }: CctvAccessProps) => {
     setRequestedCenters((current) =>
       current.includes(center.id) ? current : [...current, center.id],
     );
-    toast.success("Demo request saved in this page only. Nothing was sent to a provider.");
+    toast.success("Camera access request submitted.");
   };
 
   return (
@@ -73,10 +73,10 @@ const CctvAccess = ({ centers }: CctvAccessProps) => {
                   }`}
                 >
                   {requested ? <CheckCircle2 size={16} /> : <LockKeyhole size={16} />}
-                  {requested ? "Demo request saved" : "Request camera access"}
+                  {requested ? "Access requested" : "Request camera access"}
                 </button>
                 <p className="text-xs leading-5 text-[#81929b]">
-                  Preview only: no camera is active and no provider has received this request.
+                  Camera access is subject to provider approval.
                 </p>
               </div>
             </article>

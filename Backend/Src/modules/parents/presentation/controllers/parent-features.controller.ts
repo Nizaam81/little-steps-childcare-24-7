@@ -9,6 +9,8 @@ import { ParentFeedbackModel } from "../../infrastructure/persistence/parent-fee
 import { ParentNotificationModel } from "../../infrastructure/persistence/parent-notification.model.js";
 import { ParentWishlistModel } from "../../infrastructure/persistence/parent-wishlist.model.js";
 import { ParentRegistrationModel } from "../../infrastructure/persistence/parent.Modals.js";
+import { ProviderSubscriptionModel } from "../../../subscriptions/infrastructure/persistence/provider-subscription.model.js";
+import { isProviderSubscriptionEligible } from "../../../subscriptions/application/provider-subscription-access.js";
 
 const profileSchema = z.object({
   fullName: z.string().trim().min(2).max(100),
@@ -33,6 +35,15 @@ const bookingSchema = z.object({
   bookingStartDate: z.string().datetime(),
   bookingEndDate: z.string().datetime(),
   note: z.string().trim().max(1000).default(""),
+}).superRefine((value, context) => {
+  const start = new Date(value.bookingStartDate);
+  const end = new Date(value.bookingEndDate);
+  if (Number.isNaN(start.getTime()) || start < new Date()) {
+    context.addIssue({ code: "custom", path: ["bookingStartDate"], message: "Booking start date cannot be in the past." });
+  }
+  if (Number.isNaN(end.getTime()) || end <= start) {
+    context.addIssue({ code: "custom", path: ["bookingEndDate"], message: "Booking end date must be after the start date." });
+  }
 });
 
 function parentId(request: Request): string {
@@ -114,12 +125,22 @@ export class ParentFeaturesController {
         .select("_id centreName address district ageGroups careTypes capacity openingTime closingTime dailyPrice monthlyPrice")
         .sort({ reviewedAt: -1, updatedAt: -1 });
       const centreIds = centres.map((centre) => centre._id);
+      const subscriptions = await ProviderSubscriptionModel.find({
+        providerId: { $in: centreIds },
+      }).select("providerId status currentPeriodStart currentPeriodEnd trialEnd gracePeriodEnd paidThroughDate cancelAtPeriodEnd");
+      const eligibleCentreIds = new Set(
+        subscriptions
+          .filter((subscription) => isProviderSubscriptionEligible(subscription, new Date()))
+          .map((subscription) => subscription.providerId.toString()),
+      );
+      const eligibleCentres = centres.filter((centre) => eligibleCentreIds.has(centre.id));
+      const eligibleCentreIdsList = eligibleCentres.map((centre) => centre._id);
       const [workspaces, feedback] = await Promise.all([
-        centreIds.length
-          ? ProviderWorkspaceModel.find({ centreId: { $in: centreIds } }).select("centreId hourlyPrice description availabilitySlots availableDays photos")
+        eligibleCentreIdsList.length
+          ? ProviderWorkspaceModel.find({ centreId: { $in: eligibleCentreIdsList } }).select("centreId hourlyPrice description availabilitySlots availableDays photos")
           : [],
-        centreIds.length
-          ? ParentFeedbackModel.find({ targetType: "daycare", targetId: { $in: centreIds } }).select("targetId rating")
+        eligibleCentreIdsList.length
+          ? ParentFeedbackModel.find({ targetType: "daycare", targetId: { $in: eligibleCentreIdsList } }).select("targetId rating")
           : [],
       ]);
       const workspaceByCentre = new Map(workspaces.map((item) => [item.centreId.toString(), item]));
@@ -130,7 +151,7 @@ export class ParentFeaturesController {
       }
 
       return response.status(200).json({
-        centres: centres.map((centre) => {
+        centres: eligibleCentres.map((centre) => {
           const workspace = workspaceByCentre.get(centre.id);
           const ratings = ratingsByCentre.get(centre.id) ?? [];
           const average = ratings.length
@@ -386,6 +407,12 @@ export class ParentFeaturesController {
       ]);
       if (!parent) return response.status(404).json({ message: "Parent profile was not found." });
       if (!centre) return response.status(404).json({ message: "This daycare is not currently accepting requests." });
+      const subscription = await ProviderSubscriptionModel.findOne({
+        providerId: centre._id,
+      }).select("providerId status currentPeriodStart currentPeriodEnd trialEnd gracePeriodEnd paidThroughDate cancelAtPeriodEnd");
+      if (!isProviderSubscriptionEligible(subscription, new Date())) {
+        return response.status(409).json({ message: "This daycare is not currently accepting new booking requests." });
+      }
 
       const start = new Date(parsed.data.bookingStartDate);
       const end = new Date(parsed.data.bookingEndDate);
@@ -468,6 +495,32 @@ export class ParentFeaturesController {
     } catch (error: unknown) {
       console.error("Parent booking retrieval failed:", error);
       return response.status(500).json({ message: "Unable to load your daycare requests right now." });
+    }
+  };
+
+  cancelBooking = async (request: Request, response: Response) => {
+    if (!isValidObjectId(request.params.bookingId)) {
+      return response.status(400).json({ message: "The booking ID is invalid." });
+    }
+    try {
+      const booking = await BookingRequestModel.findOneAndUpdate(
+        {
+          _id: request.params.bookingId,
+          parentId: parentId(request),
+          status: { $in: ["pending", "rejected"] },
+        },
+        { $set: { status: "canceled" } },
+        { returnDocument: "after" },
+      );
+      if (!booking) {
+        return response.status(409).json({
+          message: "Only pending or rejected booking requests can be canceled.",
+        });
+      }
+      return response.status(200).json({ canceled: true, bookingId: booking.id });
+    } catch (error: unknown) {
+      console.error("Parent booking cancellation failed:", error);
+      return response.status(500).json({ message: "Unable to cancel this booking request right now." });
     }
   };
 

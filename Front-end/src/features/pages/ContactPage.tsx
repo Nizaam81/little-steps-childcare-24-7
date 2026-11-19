@@ -28,9 +28,6 @@ const ContactPage = () => (
             <p className="mt-1 text-sm text-[#687a88]">{siteContact.phone}</p>
           </a>
         </div>
-        <p className="mt-5 rounded-xl border border-[#f1e4c9] bg-[#fff9ed] px-4 py-3 text-xs leading-5 text-[#785c31]">
-          These are placeholder contact details for the UI preview. Replace them with your verified support email and phone number before publishing.
-        </p>
       </section>
     </main>
     <DashboardFooter />

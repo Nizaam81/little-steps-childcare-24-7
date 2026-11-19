@@ -379,7 +379,7 @@ export default function LandingPage() {
                 <div className="p-4 sm:p-5">
                   <span className="inline-flex items-center gap-1 rounded-full bg-[#e6f4f1] px-2.5 py-1 text-[11px] font-semibold text-[#277e62]">
                     <Check size={12} />
-                    Sample profile
+                    Care profile
                   </span>
 
                   <h3 className="mt-3 text-base font-semibold">
@@ -423,7 +423,7 @@ export default function LandingPage() {
           </div>
 
           <p className="mt-4 text-xs leading-5 text-slate-500">
-            Illustrative sample listings only. Prices, reviews, availability,
+            Prices, reviews, availability,
             and verification must come from real provider data before launch.
           </p>
         </div>

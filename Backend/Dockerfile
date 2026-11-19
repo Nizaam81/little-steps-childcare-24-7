@@ -11,9 +11,6 @@ ARG NODE_VERSION=22.14.0
 FROM node:${NODE_VERSION}-alpine
 
 # Use production node environment by default.
-ENV NODE_ENV development
-
-
 WORKDIR /usr/src/app
 
 # Copy package files and install dependencies
@@ -27,14 +24,19 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 RUN mkdir -p /usr/src/app/storage/provider-applications \
     && chown -R node:node /usr/src/app/storage
 
-# Run the application as a non-root user.
-USER node
-
 # Copy the rest of the source files into the image.
 COPY . .
+
+# Compile TypeScript for the production start command.
+RUN npm run build
+
+ENV NODE_ENV=production
+
+# Run the application as a non-root user.
+USER node
 
 # Expose the port that the application listens on.
 EXPOSE 3000
 
 # Run the application.
-CMD npm run dev
+CMD ["npm","run","start"]

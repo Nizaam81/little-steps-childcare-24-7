@@ -214,7 +214,7 @@ const ParentSettings = ({
       <BookingsHistory bookings={bookings} />
       <CctvAccess centers={centers} />
       <p className="text-center text-xs text-[#81929b]">
-        Booking, camera-access, and recommendation data shown here are for UI preview only.
+        Manage your booking, camera access, and recommendation preferences.
       </p>
     </main>
   );

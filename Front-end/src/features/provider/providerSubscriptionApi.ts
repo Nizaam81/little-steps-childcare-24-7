@@ -1,6 +1,7 @@
 import { providerApi } from "../auth/providerLoginApi";
 
 export interface ProviderSubscriptionDetails {
+  hasAccess: boolean;
   plan: {
     priceId: string;
     amount: number | null;

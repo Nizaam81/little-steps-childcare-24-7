@@ -68,7 +68,7 @@ export default function ProviderSubscription() {
           }
           await confirmProviderCheckout(sessionId);
           clearCheckoutResult();
-          if (active) toast.success("Your subscription is active.");
+          if (active) toast("Checkout confirmed. Subscription activation is being verified.");
         } else if (checkoutResult === "cancelled" && active) {
           clearCheckoutResult();
           toast("Checkout was cancelled. No subscription was created.");
@@ -96,10 +96,7 @@ export default function ProviderSubscription() {
     };
   }, []);
 
-  const isSubscribed = Boolean(
-    billing?.subscription &&
-    !["canceled", "incomplete_expired"].includes(billing.subscription.status),
-  );
+  const isSubscribed = Boolean(billing?.hasAccess);
 
   const startCheckout = async () => {
     setAction("checkout");
@@ -145,6 +142,15 @@ export default function ProviderSubscription() {
           One plan with access to all currently available provider features.
         </p>
       </header>
+      {!loading && !isSubscribed && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
+          <h3 className="text-base font-extrabold">Subscription required</h3>
+          <p className="mt-2 text-sm leading-6">
+            Subscribe to ₹499/month to access the provider dashboard, centre management,
+            booking requests, caregiver management and provider earnings.
+          </p>
+        </div>
+      )}
 
       {loadError && (
         <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

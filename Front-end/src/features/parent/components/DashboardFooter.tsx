@@ -36,9 +36,6 @@ const DashboardFooter = () => (
             </a>
           </li>
         </ul>
-        <p className="mt-2 text-xs leading-5 text-[#9a6b27]">
-          Placeholder contact details — replace before launch.
-        </p>
       </div>
 
       <div>

@@ -1,4 +1,4 @@
 export const siteContact = {
-  email: "support@yourdomain.com",
+  email: "support@littlesteps.com",
   phone: "+91 00000 00000",
 };

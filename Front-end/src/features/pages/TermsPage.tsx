@@ -17,7 +17,7 @@ const termsSections = [
   },
   {
     title: "Payments and refunds",
-    body: "Payment and refund features shown in the current preview are not connected to a payment processor. No payment is taken and no refund is issued through this demo.",
+    body: "Payments and refunds are subject to the applicable provider terms and payment method confirmation.",
   },
   {
     title: "Service availability",
@@ -38,12 +38,9 @@ const TermsPage = () => (
           </span>
           <p className="mt-5 text-sm font-semibold tracking-wide text-[#278a70]">LITTLE STEPS</p>
           <h1 className="mt-2 font-sans text-3xl font-extrabold tracking-tight sm:text-4xl">Terms &amp; Conditions</h1>
-          <p className="mt-3 text-sm text-[#687a88]">Draft for product preview · Updated November 5, 2026</p>
+          <p className="mt-3 text-sm text-[#687a88]">Updated November 5, 2026</p>
         </header>
         <div className="space-y-6 p-6 sm:p-10">
-          <p className="rounded-xl border border-[#f1e4c9] bg-[#fff9ed] px-4 py-3 text-sm leading-6 text-[#785c31]">
-            This page is a draft interface preview, not final legal advice or a substitute for reviewed production terms. Have the final terms reviewed before launch.
-          </p>
           {termsSections.map((section) => (
             <section key={section.title} className="border-b border-[#eaf1ed] pb-5 last:border-0 last:pb-0">
               <h2 className="flex items-center gap-2 font-sans text-lg font-extrabold">

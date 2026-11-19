@@ -7,7 +7,11 @@ import { daycarePhotoUpload } from "../middleware/upload-daycare-photo.js";
 export const providerWorkspaceRoutes = Router();
 const controller = new ProviderWorkspaceController();
 
-providerWorkspaceRoutes.get("/", controller.getWorkspace);
+providerWorkspaceRoutes.get(
+  "/",
+  requireActiveProviderSubscription,
+  controller.getWorkspace,
+);
 providerWorkspaceRoutes.patch(
   "/profile",
   requireActiveProviderSubscription,
@@ -57,7 +61,11 @@ providerWorkspaceRoutes.delete(
   requireActiveProviderSubscription,
   controller.removeCaregiver,
 );
-providerWorkspaceRoutes.get("/bookings", controller.listBookings);
+providerWorkspaceRoutes.get(
+  "/bookings",
+  requireActiveProviderSubscription,
+  controller.listBookings,
+);
 providerWorkspaceRoutes.patch(
   "/bookings/:bookingId",
   requireActiveProviderSubscription,

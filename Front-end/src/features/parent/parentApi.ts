@@ -117,7 +117,7 @@ export async function fetchParentBookings() {
     bookingStartDate?: string;
     bookingEndDate?: string;
     cameraAccessStatus?: "not_requested" | "pending" | "approved" | "rejected";
-    status: "pending" | "accepted" | "rejected";
+    status: "pending" | "accepted" | "rejected" | "canceled";
   }> }>("/bookings");
   return response.data.bookings;
 }
@@ -139,4 +139,8 @@ export async function requestParentCameraAccess(bookingId: string) {
     `/bookings/${bookingId}/camera-access`,
   );
   return response.data;
+}
+
+export async function cancelParentBooking(bookingId: string) {
+  await apiClient.delete(`/bookings/${bookingId}`);
 }

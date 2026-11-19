@@ -119,7 +119,9 @@ function toParentBooking(
         : "Accepted"
       : booking.status === "rejected"
         ? "Declined"
-        : "Pending";
+        : booking.status === "canceled"
+          ? "Canceled"
+          : "Pending";
 
   return {
     id: booking.id,
