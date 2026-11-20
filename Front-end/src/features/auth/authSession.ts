@@ -13,7 +13,7 @@ export type AuthRole = "parent" | "provider" | "admin";
 type RetriableConfig = InternalAxiosRequestConfig & { retriedAfterRefresh?: boolean };
 
 const apiBaseUrl = (
-  import.meta.env.VITE_API_BASE_URL ?? "https://little-steps-api.duckdns.org"
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
 const pendingRefreshes = new Map<string, Promise<string>>();
 const sessionClients = new Map<string, AxiosInstance>();

@@ -6,7 +6,7 @@ import type {
 } from "./registrationTypes";
 
 const apiBaseUrl = (
-  import.meta.env.VITE_API_BASE_URL ?? "https://little-steps-api.duckdns.org"
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
 
 const providerApi = axios.create({
