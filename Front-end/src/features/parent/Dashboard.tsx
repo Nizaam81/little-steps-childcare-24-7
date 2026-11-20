@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -12,9 +12,9 @@ import FeedbackDialog from "./components/FeedbackDialog";
 import ParentSettings from "./components/ParentSettings";
 import WelcomeAndStats from "./components/WelcomeAndStats";
 import { daycares } from "./dashboardData";
+import { getRegionForDistrict } from "./dashboardLocations";
 import type {
   Booking,
-  CurrentLocation,
   DashboardFilters,
   Daycare,
   ParentProfile,
@@ -45,7 +45,7 @@ const initialFilters: DashboardFilters = {
   age: "All",
   timing: "All",
   only24: false,
-  maxPrice: 6000,
+  maxPrice: "All",
   sort: "recommended",
 };
 
@@ -154,48 +154,7 @@ const ParentDashboard = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editProfileOnOpen, setEditProfileOnOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<string | undefined>();
-  const [currentLocation, setCurrentLocation] = useState<CurrentLocation>({
-    status: "requesting",
-  });
   const [isLoading, setIsLoading] = useState(true);
-  const hasRequestedLocation = useRef(false);
-
-  const requestCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setCurrentLocation({
-        status: "error",
-        message: "Location detection isn't supported by this browser.",
-      });
-      return;
-    }
-
-    setCurrentLocation({ status: "requesting" });
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setCurrentLocation({
-          status: "detected",
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          accuracy: coords.accuracy,
-        });
-      },
-      (error) => {
-        const message = error.code === error.PERMISSION_DENIED
-          ? "Location permission was denied. Choose a daycare district from the location filter."
-          : error.code === error.POSITION_UNAVAILABLE
-            ? "Your location is unavailable right now. Choose a daycare district from the location filter."
-            : "Location detection timed out. Choose a daycare district from the location filter.";
-        setCurrentLocation({ status: "error", message });
-      },
-      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 },
-    );
-  };
-
-  useEffect(() => {
-    if (hasRequestedLocation.current) return;
-    hasRequestedLocation.current = true;
-    requestCurrentLocation();
-  }, []);
 
   useEffect(() => {
     const refreshFamilyUpdates = async () => {
@@ -272,21 +231,35 @@ const ParentDashboard = () => {
     () => [...new Set(centres.map((centre) => centre.district).filter((value): value is string => Boolean(value)))].sort(),
     [centres],
   );
+  const places = useMemo(
+    () => [...new Set(centres.map((centre) => centre.location).filter(Boolean))].sort(),
+    [centres],
+  );
 
   const filteredCenters = useMemo(() => {
     const search = filters.search.trim().toLowerCase();
-    const location = filters.location.toLowerCase();
     const results = centres.filter((center) => {
-      const locationText = `${center.district ?? ""} ${center.location}`.toLowerCase();
+      const region = getRegionForDistrict(center.district ?? "");
+      const locationText = `${center.district ?? ""} ${center.location} ${region?.name ?? ""}`.toLowerCase();
       const matchesSearch = `${center.name} ${locationText}`.includes(search);
-      const matchesLocation = filters.location === "All" || locationText.includes(location);
+      const [locationType, ...locationParts] = filters.location.split(":");
+      const selectedLocation = locationParts.join(":").toLocaleLowerCase();
+      const matchesLocation =
+        filters.location === "All" ||
+        (locationType === "state"
+          ? region?.name.toLocaleLowerCase() === selectedLocation
+          : locationType === "district"
+            ? center.district?.toLocaleLowerCase() === selectedLocation
+            : locationType === "place"
+              ? center.location.toLocaleLowerCase() === selectedLocation
+              : locationText.includes(filters.location.toLowerCase()));
       return (
         matchesSearch &&
         matchesLocation &&
         (filters.age === "All" || center.ages.some((age) => age.toLowerCase().includes(filters.age.toLowerCase()))) &&
         (filters.timing === "All" || center.timings.includes(filters.timing)) &&
         (!filters.only24 || center.available24) &&
-        center.price <= filters.maxPrice
+        (filters.maxPrice === "All" || center.price <= filters.maxPrice)
       );
     });
 
@@ -484,9 +457,8 @@ const ParentDashboard = () => {
               filters={filters}
               favorites={favorites}
               locations={locations}
-              currentLocation={currentLocation}
+              places={places}
               onFiltersChange={setFilters}
-              onRetryLocation={requestCurrentLocation}
               onToggleFavorite={(id) => void toggleDaycareWishlist(id)}
               onBook={setSelectedCenter}
               onViewDetails={setSelectedDetails}

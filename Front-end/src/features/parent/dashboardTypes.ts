@@ -41,14 +41,9 @@ export type DashboardFilters = {
   age: string;
   timing: string;
   only24: boolean;
-  maxPrice: number;
+  maxPrice: number | "All";
   sort: string;
 };
-
-export type CurrentLocation =
-  | { status: "requesting" }
-  | { status: "detected"; latitude: number; longitude: number; accuracy: number }
-  | { status: "error"; message: string };
 
 export type ParentProfile = {
   fullName: string;

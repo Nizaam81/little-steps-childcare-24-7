@@ -1,8 +1,5 @@
 import {
-  Check,
   Filter,
-  LocateFixed,
-  LoaderCircle,
   Search,
   SlidersHorizontal,
   X,
@@ -10,10 +7,10 @@ import {
 import { useState } from "react";
 import type { ChangeEvent } from "react";
 import type {
-  CurrentLocation,
   DashboardFilters,
   Daycare,
 } from "../dashboardTypes";
+import { locationRegions } from "../dashboardLocations";
 import DaycareCard from "./DaycareCard";
 import ResponsivePagination from "../../../components/ResponsivePagination";
 
@@ -22,9 +19,8 @@ type DaycareDiscoveryProps = {
   filters: DashboardFilters;
   favorites: Array<string | number>;
   locations: string[];
-  currentLocation: CurrentLocation;
+  places: string[];
   onFiltersChange: (filters: DashboardFilters) => void;
-  onRetryLocation: () => void;
   onToggleFavorite: (id: string | number) => void;
   onBook: (center: Daycare) => void;
   onViewDetails: (center: Daycare) => void;
@@ -38,9 +34,8 @@ const DaycareDiscovery = ({
   filters,
   favorites,
   locations,
-  currentLocation,
+  places,
   onFiltersChange,
-  onRetryLocation,
   onToggleFavorite,
   onBook,
   onViewDetails,
@@ -58,7 +53,7 @@ const DaycareDiscovery = ({
     resetPage();
     onFiltersChange({
       ...filters,
-      [name]: name === "maxPrice" ? Number(value) : value,
+      [name]: name === "maxPrice" && value !== "All" ? Number(value) : value,
     });
   };
 
@@ -70,7 +65,7 @@ const DaycareDiscovery = ({
       age: "All",
       timing: "All",
       only24: false,
-      maxPrice: 6000,
+      maxPrice: "All",
       sort: "recommended",
     });
   };
@@ -80,7 +75,7 @@ const DaycareDiscovery = ({
     filters.location !== "All",
     filters.timing !== "All",
     filters.only24,
-    filters.maxPrice !== 6000,
+    filters.maxPrice !== "All",
   ].filter(Boolean).length;
 
   return (
@@ -91,15 +86,15 @@ const DaycareDiscovery = ({
         <p className="mt-2 text-sm text-[#687a88]">Search, compare and choose trusted childcare centers.</p>
       </div>
 
-      <div className="grid gap-4 rounded-3xl border border-[#e3ece7] bg-white p-4 shadow-sm sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(190px,0.6fr)_minmax(280px,0.9fr)]">
+      <div className="grid gap-4 rounded-3xl border border-[#e3ece7] bg-white p-4 shadow-sm sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.75fr)]">
         <div className="relative self-start">
           <Search className="absolute left-3 top-3.5 text-[#81929b]" size={20} />
           <input
             name="search"
             value={filters.search}
             onChange={updateFilter}
-            placeholder="Search by daycare name or area"
-            aria-label="Search daycare or location"
+            placeholder="Search by daycare, state, district or place"
+            aria-label="Search daycare, state, district or place"
             className="w-full rounded-xl border border-[#dce8e2] bg-[#f8faf9] py-3 pl-11 pr-4 text-sm text-[#26384b] outline-none placeholder:text-[#94a3ad] focus:border-[#278a70] focus:ring-2 focus:ring-[#d7eee4]"
           />
         </div>
@@ -113,54 +108,35 @@ const DaycareDiscovery = ({
             className="w-full rounded-xl border border-[#dce8e2] bg-white p-3 text-sm font-medium text-[#26384b] outline-none focus:border-[#278a70] focus:ring-2 focus:ring-[#d7eee4]"
           >
             <option value="All">All locations</option>
-            {locations.map((location) => <option key={location} value={location}>{location}</option>)}
-          </select>
-        </div>
-        <div className="rounded-2xl border border-[#dcece5] bg-[#f6faf8] p-4">
-          <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e3f3ed] text-[#278a70]">
-              {currentLocation.status === "requesting"
-                ? <LoaderCircle className="animate-spin" size={19} />
-                : currentLocation.status === "detected"
-                  ? <Check size={19} />
-                  : <LocateFixed size={19} />}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-[#26384b]">Your current location</p>
-              {currentLocation.status === "requesting" && (
-                <p className="mt-1 text-xs leading-5 text-[#687a88]">
-                  Waiting for your browser's location permission...
-                </p>
-              )}
-              {currentLocation.status === "detected" && (
-                <>
-                  <p className="mt-1 break-words text-xs font-medium text-[#237960]">
-                    {currentLocation.latitude.toFixed(3)}, {currentLocation.longitude.toFixed(3)}
-                    <span className="ml-1 font-normal text-[#687a88]">
-                      · ±{Math.round(currentLocation.accuracy)} m
-                    </span>
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-[#687a88]">
-                    Search by area or choose a daycare location. Centre listings use their registered address.
-                  </p>
-                </>
-              )}
-              {currentLocation.status === "error" && (
-                <p role="status" className="mt-1 text-xs leading-5 text-[#8a5a16]">
-                  {currentLocation.message}
-                </p>
-              )}
-            </div>
-            {currentLocation.status !== "requesting" && (
-              <button
-                type="button"
-                onClick={onRetryLocation}
-                className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-[#278a70] transition hover:bg-[#e5f4ee]"
-              >
-                {currentLocation.status === "detected" ? "Refresh" : "Retry"}
-              </button>
+            {locationRegions.map((region) => (
+              <optgroup key={region.name} label={region.name}>
+                <option value={`state:${region.name}`}>All {region.name}</option>
+                {region.districts.map((district) => (
+                  <option key={district} value={`district:${district}`}>{district}</option>
+                ))}
+              </optgroup>
+            ))}
+            {locations.some((location) => !locationRegions.some((region) =>
+              region.districts.some((district) => district.toLocaleLowerCase() === location.toLocaleLowerCase()),
+            )) && (
+              <optgroup label="Other approved daycare districts">
+                {locations
+                  .filter((location) => !locationRegions.some((region) =>
+                    region.districts.some((district) => district.toLocaleLowerCase() === location.toLocaleLowerCase()),
+                  ))
+                  .map((location) => (
+                    <option key={location} value={`district:${location}`}>{location}</option>
+                  ))}
+              </optgroup>
             )}
-          </div>
+            {places.length > 0 && (
+              <optgroup label="Approved daycare places">
+                {places.map((place) => (
+                  <option key={place} value={`place:${place}`}>{place}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
         </div>
       </div>
 
@@ -201,7 +177,7 @@ const DaycareDiscovery = ({
           <div>
             <label htmlFor="price-filter" className="mb-2 block text-xs font-bold uppercase tracking-wide text-[#687a88]">Monthly budget</label>
             <select id="price-filter" name="maxPrice" value={filters.maxPrice} onChange={updateFilter} className="w-full rounded-xl border border-[#dce8e2] bg-white p-3 text-sm font-medium text-[#26384b] outline-none transition focus:border-[#278a70] focus:ring-2 focus:ring-[#d7eee4]">
-              <option value={3000}>Up to ₹3,000</option><option value={4000}>Up to ₹4,000</option><option value={5000}>Up to ₹5,000</option><option value={6000}>Any price</option>
+              <option value="All">Any price</option><option value={3000}>Up to ₹3,000</option><option value={4000}>Up to ₹4,000</option><option value={5000}>Up to ₹5,000</option><option value={6000}>Up to ₹6,000</option>
             </select>
           </div>
           <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${filters.only24 ? "border-[#9ccfba] bg-[#f0f8f4]" : "border-[#dce8e2] bg-white hover:bg-[#fbfdfc]"}`}>
