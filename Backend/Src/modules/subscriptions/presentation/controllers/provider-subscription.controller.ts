@@ -118,10 +118,9 @@ async function saveStripeSubscription(
   );
 }
 
-async function findApprovedProvider(providerId: string) {
+async function findProviderForBilling(providerId: string) {
   return ProviderRegistrationModel.findOne({
     _id: providerId,
-    status: "approved",
     isActive: { $ne: false },
   }).select("_id ownerName ownerEmail centreName");
 }
@@ -169,8 +168,8 @@ export class ProviderSubscriptionController {
     if (!providerId) return response.status(401).json({ message: "Provider authentication is required." });
 
     try {
-      const provider = await findApprovedProvider(providerId);
-      if (!provider) return response.status(404).json({ message: "Your approved provider account was not found." });
+      const provider = await findProviderForBilling(providerId);
+      if (!provider) return response.status(404).json({ message: "Your provider account was not found." });
 
       const currentSubscription = await ProviderSubscriptionModel.findOne({ providerId });
       if (isProviderSubscriptionEligible(currentSubscription, new Date())) {

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
+import { requireApprovedProviderCentre } from "../middleware/require-approved-provider-centre.middleware.js";
 import { requireActiveProviderSubscription } from "../../../subscriptions/presentation/middleware/require-active-provider-subscription.middleware.js";
 import { ProviderWorkspaceController } from "../controllers/provider-workspace.controller.js";
 import { daycarePhotoUpload } from "../middleware/upload-daycare-photo.js";
@@ -9,16 +10,17 @@ const controller = new ProviderWorkspaceController();
 
 providerWorkspaceRoutes.get(
   "/",
-  requireActiveProviderSubscription,
   controller.getWorkspace,
 );
 providerWorkspaceRoutes.patch(
   "/profile",
+  requireApprovedProviderCentre,
   requireActiveProviderSubscription,
   controller.updateProfile,
 );
 providerWorkspaceRoutes.post(
   "/photos",
+  requireApprovedProviderCentre,
   requireActiveProviderSubscription,
   (request, response, next) => {
     daycarePhotoUpload.single("photo")(request, response, (error: unknown) => {
@@ -43,41 +45,47 @@ providerWorkspaceRoutes.post(
 );
 providerWorkspaceRoutes.delete(
   "/photos/:photoId",
+  requireApprovedProviderCentre,
   requireActiveProviderSubscription,
   controller.removePhoto,
 );
 providerWorkspaceRoutes.post(
   "/caregivers",
+  requireApprovedProviderCentre,
   requireActiveProviderSubscription,
   controller.addCaregiver,
 );
 providerWorkspaceRoutes.patch(
   "/caregivers/:caregiverId",
+  requireApprovedProviderCentre,
   requireActiveProviderSubscription,
   controller.updateCaregiver,
 );
 providerWorkspaceRoutes.delete(
   "/caregivers/:caregiverId",
+  requireApprovedProviderCentre,
   requireActiveProviderSubscription,
   controller.removeCaregiver,
 );
 providerWorkspaceRoutes.get(
   "/bookings",
-  requireActiveProviderSubscription,
   controller.listBookings,
 );
 providerWorkspaceRoutes.patch(
   "/bookings/:bookingId",
+  requireApprovedProviderCentre,
   requireActiveProviderSubscription,
   controller.updateBooking,
 );
 providerWorkspaceRoutes.delete(
   "/bookings/:bookingId",
+  requireApprovedProviderCentre,
   requireActiveProviderSubscription,
   controller.deleteRejectedBooking,
 );
 providerWorkspaceRoutes.patch(
   "/bookings/:bookingId/camera-access",
+  requireApprovedProviderCentre,
   requireActiveProviderSubscription,
   controller.updateCameraAccess,
 );

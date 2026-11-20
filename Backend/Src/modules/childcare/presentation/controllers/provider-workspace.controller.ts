@@ -56,10 +56,8 @@ export class ProviderWorkspaceController {
     try {
       const registration = await ProviderRegistrationModel.findOne({
         _id: providerId(request),
-        status: "approved",
-        isActive: { $ne: false },
-      }).select("_id centreName address district ageGroups careTypes capacity openingTime closingTime dailyPrice monthlyPrice isAcceptingBookings");
-      if (!registration) return response.status(404).json({ message: "Your approved daycare centre was not found." });
+      }).select("_id centreName address district ageGroups careTypes capacity openingTime closingTime dailyPrice monthlyPrice isAcceptingBookings status isActive reviewNotes");
+      if (!registration) return response.status(404).json({ message: "Your daycare centre was not found." });
 
       const [saved, caregivers, bookings] = await Promise.all([
         ProviderWorkspaceModel.findOne({ centreId: registration._id }),
@@ -73,6 +71,11 @@ export class ProviderWorkspaceController {
       ]);
       return response.status(200).json({
         workspace: {
+          centreStatus: {
+            status: registration.status,
+            isActive: registration.isActive,
+            reviewNotes: registration.reviewNotes,
+          },
           availableDays: saved?.availableDays ?? [],
           photos: (saved?.photos ?? []).map((photo) => ({
             id: photo._id.toString(),

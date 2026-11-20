@@ -9,8 +9,6 @@ import { ParentFeedbackModel } from "../../infrastructure/persistence/parent-fee
 import { ParentNotificationModel } from "../../infrastructure/persistence/parent-notification.model.js";
 import { ParentWishlistModel } from "../../infrastructure/persistence/parent-wishlist.model.js";
 import { ParentRegistrationModel } from "../../infrastructure/persistence/parent.Modals.js";
-import { ProviderSubscriptionModel } from "../../../subscriptions/infrastructure/persistence/provider-subscription.model.js";
-import { isProviderSubscriptionEligible } from "../../../subscriptions/application/provider-subscription-access.js";
 
 const profileSchema = z.object({
   fullName: z.string().trim().min(2).max(100),
@@ -125,22 +123,12 @@ export class ParentFeaturesController {
         .select("_id centreName address district ageGroups careTypes capacity openingTime closingTime dailyPrice monthlyPrice")
         .sort({ reviewedAt: -1, updatedAt: -1 });
       const centreIds = centres.map((centre) => centre._id);
-      const subscriptions = await ProviderSubscriptionModel.find({
-        providerId: { $in: centreIds },
-      }).select("providerId status currentPeriodStart currentPeriodEnd trialEnd gracePeriodEnd paidThroughDate cancelAtPeriodEnd");
-      const eligibleCentreIds = new Set(
-        subscriptions
-          .filter((subscription) => isProviderSubscriptionEligible(subscription, new Date()))
-          .map((subscription) => subscription.providerId.toString()),
-      );
-      const eligibleCentres = centres.filter((centre) => eligibleCentreIds.has(centre.id));
-      const eligibleCentreIdsList = eligibleCentres.map((centre) => centre._id);
       const [workspaces, feedback] = await Promise.all([
-        eligibleCentreIdsList.length
-          ? ProviderWorkspaceModel.find({ centreId: { $in: eligibleCentreIdsList } }).select("centreId hourlyPrice description availabilitySlots availableDays photos")
+        centreIds.length
+          ? ProviderWorkspaceModel.find({ centreId: { $in: centreIds } }).select("centreId hourlyPrice description availabilitySlots availableDays photos")
           : [],
-        eligibleCentreIdsList.length
-          ? ParentFeedbackModel.find({ targetType: "daycare", targetId: { $in: eligibleCentreIdsList } }).select("targetId rating")
+        centreIds.length
+          ? ParentFeedbackModel.find({ targetType: "daycare", targetId: { $in: centreIds } }).select("targetId rating")
           : [],
       ]);
       const workspaceByCentre = new Map(workspaces.map((item) => [item.centreId.toString(), item]));
@@ -151,7 +139,7 @@ export class ParentFeaturesController {
       }
 
       return response.status(200).json({
-        centres: eligibleCentres.map((centre) => {
+        centres: centres.map((centre) => {
           const workspace = workspaceByCentre.get(centre.id);
           const ratings = ratingsByCentre.get(centre.id) ?? [];
           const average = ratings.length
@@ -407,12 +395,6 @@ export class ParentFeaturesController {
       ]);
       if (!parent) return response.status(404).json({ message: "Parent profile was not found." });
       if (!centre) return response.status(404).json({ message: "This daycare is not currently accepting requests." });
-      const subscription = await ProviderSubscriptionModel.findOne({
-        providerId: centre._id,
-      }).select("providerId status currentPeriodStart currentPeriodEnd trialEnd gracePeriodEnd paidThroughDate cancelAtPeriodEnd");
-      if (!isProviderSubscriptionEligible(subscription, new Date())) {
-        return response.status(409).json({ message: "This daycare is not currently accepting new booking requests." });
-      }
 
       const start = new Date(parsed.data.bookingStartDate);
       const end = new Date(parsed.data.bookingEndDate);

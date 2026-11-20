@@ -9,7 +9,7 @@ import {
 
 export class LoginProviderUseCase {
   constructor(
-    private readonly registrations: ProviderRegistrationRepository,
+    private readonly registrations: Pick<ProviderRegistrationRepository, "findForLogin">,
   ) {}
 
   async execute(input: {
@@ -46,7 +46,7 @@ export class LoginProviderUseCase {
         status: application.status,
         reviewNotes: application.reviewNotes,
       },
-      dashboardAccess: application.status === "approved" && application.isActive,
+      dashboardAccess: application.isActive,
     };
   }
 }

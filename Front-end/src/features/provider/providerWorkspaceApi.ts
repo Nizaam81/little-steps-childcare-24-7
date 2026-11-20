@@ -8,6 +8,7 @@ import type {
 } from "./providerWorkspace";
 
 type ServerWorkspace = {
+  centreStatus: ProviderWorkspaceData["centreStatus"];
   availableDays: string[];
   photos: DaycarePhoto[];
   profile: Omit<ProviderCentreProfile, "availabilitySlots"> & {
@@ -22,6 +23,7 @@ type ServerWorkspace = {
 
 function mapWorkspace(server: ServerWorkspace): ProviderWorkspaceData {
   return {
+    centreStatus: server.centreStatus,
     profile: {
       ...server.profile,
       availabilitySlots: server.profile.availabilitySlots.map((slot, index) => ({

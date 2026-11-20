@@ -45,11 +45,24 @@ export default function AuthRoute({
   useEffect(() => {
     let active = true;
     const keys = requiredRole ? sessionKeys[requiredRole] : sessionKeys.parent;
+    const hadSession = Boolean(
+      localStorage.getItem(keys.access) || localStorage.getItem(keys.refresh),
+    );
     void validateAuthSession(keys)
       .then(async (role) => {
+        if (active && requiredRole && hadSession && !role) {
+          sessionStorage.setItem(`${requiredRole}SessionExpired`, "true");
+        }
         if (guestOnly && !role) {
           for (const candidate of ["provider", "admin"] as const) {
+            const candidateHadSession = Boolean(
+              localStorage.getItem(sessionKeys[candidate].access) ||
+              localStorage.getItem(sessionKeys[candidate].refresh),
+            );
             const candidateRole = await validateAuthSession(sessionKeys[candidate]);
+            if (active && candidateHadSession && !candidateRole) {
+              sessionStorage.setItem(`${candidate}SessionExpired`, "true");
+            }
             if (candidateRole) {
               if (active) setState({ status: "ready", role: candidateRole });
               return;

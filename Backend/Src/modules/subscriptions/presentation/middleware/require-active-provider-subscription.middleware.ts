@@ -2,7 +2,6 @@ import { isValidObjectId } from "mongoose";
 import type { RequestHandler } from "express";
 import { ProviderSubscriptionModel } from "../../infrastructure/persistence/provider-subscription.model.js";
 import { isProviderSubscriptionEligible } from "../../application/provider-subscription-access.js";
-import { ProviderRegistrationModel } from "../../../childcare/infrastructure/persistence/provider-registration.model.js";
 
 export const requireActiveProviderSubscription: RequestHandler =
   async (request, response, next) => {
@@ -12,18 +11,6 @@ export const requireActiveProviderSubscription: RequestHandler =
     }
 
     try {
-      const provider = await ProviderRegistrationModel.findOne({
-        _id: providerId,
-        status: "approved",
-        isActive: { $ne: false },
-      }).select("_id");
-      if (!provider) {
-        return response.status(403).json({
-          code: "CENTRE_APPROVAL_REQUIRED",
-          message: "Your approved daycare centre is required before using provider workspace features.",
-        });
-      }
-
       const subscription = await ProviderSubscriptionModel.findOne({ providerId })
         .select("providerId status currentPeriodStart currentPeriodEnd trialEnd gracePeriodEnd paidThroughDate cancelAtPeriodEnd");
 

@@ -48,6 +48,11 @@ export interface BookingRequest {
 }
 
 export interface ProviderWorkspaceData {
+  centreStatus: {
+    status: "pending_verification" | "approved" | "rejected" | "corrections_requested";
+    isActive: boolean;
+    reviewNotes: string;
+  };
   profile: ProviderCentreProfile;
   photos: DaycarePhoto[];
   caregivers: Caregiver[];
@@ -99,6 +104,13 @@ function isProviderCentreProfile(value: unknown): value is ProviderCentreProfile
 function isProviderWorkspaceData(value: unknown): value is ProviderWorkspaceData {
   return (
     isRecord(value) &&
+    isRecord(value.centreStatus) &&
+    (value.centreStatus.status === "pending_verification" ||
+      value.centreStatus.status === "approved" ||
+      value.centreStatus.status === "rejected" ||
+      value.centreStatus.status === "corrections_requested") &&
+    typeof value.centreStatus.isActive === "boolean" &&
+    typeof value.centreStatus.reviewNotes === "string" &&
     isProviderCentreProfile(value.profile) &&
     Array.isArray(value.caregivers) &&
     value.caregivers.every(

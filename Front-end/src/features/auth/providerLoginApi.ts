@@ -29,6 +29,7 @@ const apiBaseUrl = (
 export const providerApi = axios.create({
   baseURL: `${apiBaseUrl}/api/childcare`,
   headers: { "Content-Type": "application/json" },
+  timeout: 20_000,
 });
 installAuthInterceptors(providerApi, {
   access: "providerToken",

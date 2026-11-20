@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -58,6 +58,12 @@ export default function ProviderLogin() {
     mode: "onTouched",
   });
 
+  useEffect(() => {
+    if (sessionStorage.getItem("providerSessionExpired") !== "true") return;
+    sessionStorage.removeItem("providerSessionExpired");
+    toast.error("Your provider session expired. Please sign in again.");
+  }, []);
+
   const onSubmit = async (form: ProviderLoginForm) => {
     setLoginResult(null);
     localStorage.removeItem("providerToken");
@@ -106,7 +112,9 @@ export default function ProviderLogin() {
       setLoginResult(result);
       toast.success(
         result.dashboardAccess
-          ? "Welcome back. Your provider account is approved."
+          ? result.provider.status === "approved"
+            ? "Welcome back. Your provider dashboard is ready."
+            : `Dashboard access granted. ${providerStatusLabels[result.provider.status]}.`
           : `Sign-in verified. ${providerStatusLabels[result.provider.status]}.`,
       );
       if (result.dashboardAccess) {

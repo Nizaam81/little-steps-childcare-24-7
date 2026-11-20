@@ -39,6 +39,32 @@ test("blocks past due without a grace period", () => {
   }, now), false);
 });
 
+test("allows past due only through an explicitly configured grace period", () => {
+  assert.equal(isProviderSubscriptionEligible({
+    providerId,
+    status: "past_due",
+    gracePeriodEnd: new Date("2026-11-20T00:00:00.000Z"),
+  }, now), true);
+  assert.equal(isProviderSubscriptionEligible({
+    providerId,
+    status: "past_due",
+    gracePeriodEnd: new Date("2026-11-18T00:00:00.000Z"),
+  }, now), false);
+});
+
+test("blocks unpaid and expired subscriptions", () => {
+  assert.equal(isProviderSubscriptionEligible({
+    providerId,
+    status: "unpaid",
+    gracePeriodEnd: new Date("2026-12-19T00:00:00.000Z"),
+  }, now), false);
+  assert.equal(isProviderSubscriptionEligible({
+    providerId,
+    status: "active",
+    paidThroughDate: new Date("2026-11-18T00:00:00.000Z"),
+  }, now), false);
+});
+
 test("allows trial only while trial end is future", () => {
   assert.equal(isProviderSubscriptionEligible({
     providerId,

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import axios from "axios";
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays, Check, CreditCard, ExternalLink } from "lucide-react";
 import toast from "react-hot-toast";
 import { getApiErrorMessage } from "../../utils/api-error-message";
@@ -15,8 +16,8 @@ const includedFeatures = [
   "Manage daycare facilities and services",
   "View and manage parent booking requests",
   "Manage daycare information",
-  "View basic dashboard statistics",
-  "Access existing provider dashboard features",
+  "Manage caregiver profiles and availability",
+  "Approve camera-access requests",
 ];
 
 function formatPrice(plan: ProviderSubscriptionDetails["plan"]): string {
@@ -38,11 +39,18 @@ function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString() : "—";
 }
 
-export default function ProviderSubscription() {
+export default function ProviderSubscription({
+  onSubscriptionChange,
+}: {
+  onSubscriptionChange?: (hasAccess: boolean, activationPending: boolean) => void;
+}) {
   const [billing, setBilling] = useState<ProviderSubscriptionDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [action, setAction] = useState<"checkout" | "portal" | null>(null);
+  const [refreshAttempt, setRefreshAttempt] = useState(0);
+  const [activationPending, setActivationPending] = useState(false);
+  const activationPendingRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -61,27 +69,49 @@ export default function ProviderSubscription() {
     };
 
     const loadBilling = async () => {
+      setLoading(true);
+      setLoadError("");
       try {
         if (checkoutResult === "success") {
           if (!sessionId) {
             throw new Error("Stripe returned a successful checkout without a session ID.");
           }
           await confirmProviderCheckout(sessionId);
+          activationPendingRef.current = true;
           clearCheckoutResult();
-          if (active) toast("Checkout confirmed. Subscription activation is being verified.");
+          if (active) toast("Checkout received. Verifying your subscription activation.");
         } else if (checkoutResult === "cancelled" && active) {
           clearCheckoutResult();
           toast("Checkout was cancelled. No subscription was created.");
         }
 
-        const details = await fetchProviderSubscription();
+        let details = await fetchProviderSubscription();
+        if (checkoutResult === "success" || activationPendingRef.current) {
+          for (let attempt = 0; attempt < 6 && !details.hasAccess; attempt += 1) {
+            await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+            if (!active) return;
+            details = await fetchProviderSubscription();
+          }
+        }
         if (active) {
+          const waitingForWebhook = !details.hasAccess &&
+            (checkoutResult === "success" || activationPendingRef.current);
+          activationPendingRef.current = waitingForWebhook;
+          setActivationPending(waitingForWebhook);
           setBilling(details);
           setLoadError("");
+          onSubscriptionChange?.(details.hasAccess, waitingForWebhook);
+          if (waitingForWebhook) {
+            toast("Payment received. Access will unlock after Stripe verifies the subscription.");
+          }
         }
       } catch (error: unknown) {
         if (active) {
-          const message = getApiErrorMessage(error, "Unable to load subscription details.");
+          const message = checkoutResult === "success" &&
+            axios.isAxiosError(error) &&
+            error.response?.status === 409
+            ? `Payment was not completed or verified. Paid features remain locked. ${getApiErrorMessage(error, "")}`
+            : getApiErrorMessage(error, "Unable to load subscription details.");
           setLoadError(message);
           toast.error(message);
         }
@@ -94,7 +124,7 @@ export default function ProviderSubscription() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [onSubscriptionChange, refreshAttempt]);
 
   const isSubscribed = Boolean(billing?.hasAccess);
 
@@ -144,18 +174,37 @@ export default function ProviderSubscription() {
       </header>
       {!loading && !isSubscribed && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
-          <h3 className="text-base font-extrabold">Subscription required</h3>
+          <h3 className="text-base font-extrabold">
+            {activationPending ? "Verifying subscription activation" : "Subscription required"}
+          </h3>
           <p className="mt-2 text-sm leading-6">
-            Subscribe to ₹499/month to access the provider dashboard, centre management,
-            booking requests, caregiver management and provider earnings.
+            {activationPending
+              ? "Stripe has received your payment. Paid features stay locked until the backend confirms your subscription."
+              : "The dashboard, centre information, booking history and subscription page remain available for free. Subscribe to ₹499/month to edit centre details, manage operations and respond to family requests."}
           </p>
+          {activationPending && (
+            <button
+              type="button"
+              onClick={() => setRefreshAttempt((current) => current + 1)}
+              className="mt-3 rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold"
+            >
+              Refresh activation status
+            </button>
+          )}
         </div>
       )}
 
       {loadError && (
-        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {loadError}
-        </p>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <p>{loadError}</p>
+          <button
+            type="button"
+            onClick={() => setRefreshAttempt((current) => current + 1)}
+            className="mt-2 rounded-lg border border-rose-300 px-3 py-1.5 font-semibold"
+          >
+            Retry subscription status
+          </button>
+        </div>
       )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
@@ -252,14 +301,16 @@ export default function ProviderSubscription() {
           <button
             type="button"
             onClick={() => void (isSubscribed ? openBillingPortal() : startCheckout())}
-            disabled={loading || Boolean(loadError) || action !== null}
+            disabled={loading || Boolean(loadError) || action !== null || activationPending}
             className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#278a70] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1f755f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#278a70] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubscribed
               ? <><ExternalLink size={16} aria-hidden="true" /> {action === "portal" ? "Opening billing…" : "Manage billing"}</>
-              : action === "checkout"
-                ? "Opening secure checkout…"
-                : "Subscribe Now"}
+              : activationPending
+                ? "Waiting for Stripe verification…"
+                : action === "checkout"
+                  ? "Opening secure checkout…"
+                  : "Subscribe Now"}
           </button>
           <p className="mt-3 text-xs leading-5 text-slate-500">
             Payments are securely handled by Stripe. You can manage or cancel an active plan in the billing portal.

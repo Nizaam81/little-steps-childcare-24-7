@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import {
   Baby,
@@ -50,7 +50,10 @@ import { clearAuthSession } from "../auth/authSession";
 import { getApiErrorMessage } from "../../utils/api-error-message";
 import { confirmWithToast } from "../../utils/confirm-with-toast";
 import ProviderSubscription from "./ProviderSubscription";
-import { fetchProviderSubscription } from "./providerSubscriptionApi";
+import {
+  createProviderCheckoutSession,
+  fetchProviderSubscription,
+} from "./providerSubscriptionApi";
 
 type DashboardSection =
   | "overview"
@@ -73,6 +76,12 @@ const navigation: { id: DashboardSection; label: string; icon: typeof LayoutDash
 
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const pageSizeByList = { caregivers: 6, slots: 5, bookings: 8, recent: 3 };
+const centreStatusLabels: Record<ProviderWorkspaceData["centreStatus"]["status"], string> = {
+  pending_verification: "Awaiting admin approval",
+  approved: "Approved",
+  rejected: "Rejected",
+  corrections_requested: "Changes requested",
+};
 const emptyCentreProfile: ProviderCentreProfile = {
   name: "",
   address: "",
@@ -110,6 +119,103 @@ function StatusPill({ status }: { status: BookingRequest["status"] }) {
   );
 }
 
+function OperationalAccessNotice({
+  centreStatus,
+  hasSubscription,
+  activationPending,
+  subscriptionError,
+  billingRefreshing,
+  checkoutPending,
+  onSubscribe,
+  onRetryBilling,
+}: {
+  centreStatus: ProviderWorkspaceData["centreStatus"];
+  hasSubscription: boolean | null;
+  activationPending: boolean;
+  subscriptionError: string;
+  billingRefreshing: boolean;
+  checkoutPending: boolean;
+  onSubscribe: () => void;
+  onRetryBilling: () => void;
+}) {
+  if (!centreStatus.isActive) {
+    return (
+      <p role="status" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        This provider account is inactive. Contact Little Steps support for assistance.
+      </p>
+    );
+  }
+  if (centreStatus.status !== "approved") {
+    const description = centreStatus.status === "rejected"
+      ? "Operational features are unavailable because this centre was not approved."
+      : centreStatus.status === "corrections_requested"
+        ? "Submit the requested changes and wait for admin approval before using operational features."
+        : "Operational features unlock after an administrator approves this centre.";
+    return (
+      <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <p className="font-bold">{centreStatusLabels[centreStatus.status]}</p>
+        <p className="mt-1 leading-6">{description}</p>
+        {centreStatus.reviewNotes && (
+          <p className="mt-2 leading-6"><span className="font-semibold">Admin feedback:</span> {centreStatus.reviewNotes}</p>
+        )}
+      </div>
+    );
+  }
+  if (activationPending) {
+    return (
+      <div role="status" className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-4 text-blue-950 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-bold">Verifying subscription activation</p>
+          <p className="mt-1 text-sm leading-6">Payment was received. Paid features unlock when Stripe confirms the subscription to the backend.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onRetryBilling}
+          disabled={billingRefreshing}
+          className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-blue-300 px-4 text-sm font-bold disabled:opacity-60"
+        >
+          {billingRefreshing ? "Checking…" : "Refresh status"}
+        </button>
+      </div>
+    );
+  }
+  if (hasSubscription) return null;
+  if (hasSubscription === null) {
+    return (
+      <div role="status" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+        <p className="font-semibold">Subscription access could not be verified.</p>
+        <p className="mt-1">{subscriptionError || "Checking your subscription status…"}</p>
+        {subscriptionError && (
+          <button
+            type="button"
+            onClick={onRetryBilling}
+            disabled={billingRefreshing}
+            className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold disabled:opacity-60"
+          >
+            {billingRefreshing ? "Checking…" : "Retry status check"}
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div role="status" className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="font-bold">Subscription required for provider operations</p>
+        <p className="mt-1 text-sm leading-6">Your dashboard and existing information remain available. Subscribe for ₹499/month to edit centre details, manage caregivers and respond to booking requests.</p>
+      </div>
+      <button
+        type="button"
+        onClick={onSubscribe}
+        disabled={checkoutPending}
+        className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-[#278a70] px-4 text-sm font-bold text-white hover:bg-[#20785f] disabled:cursor-wait disabled:opacity-60"
+      >
+        {checkoutPending ? "Opening checkout…" : "Subscribe Now · ₹499/month"}
+      </button>
+    </div>
+  );
+}
+
 export default function ProviderDashboard() {
   const navigate = useNavigate();
   const [initialState] = useState<{
@@ -138,6 +244,10 @@ export default function ProviderDashboard() {
   );
   const [workspaceLoadError, setWorkspaceLoadError] = useState("");
   const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
+  const [subscriptionActivationPending, setSubscriptionActivationPending] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState("");
+  const [billingRefreshing, setBillingRefreshing] = useState(false);
+  const [checkoutPending, setCheckoutPending] = useState(false);
   const [activeSection, setActiveSection] = useState<DashboardSection>(() =>
     new URLSearchParams(window.location.search).get("section") === "subscription"
       ? "subscription"
@@ -197,11 +307,14 @@ export default function ProviderDashboard() {
       .then((billing) => {
         if (active) {
           setHasSubscription(billing.hasAccess);
-          if (!billing.hasAccess) setActiveSection("subscription");
+          setSubscriptionError("");
         }
       })
-      .catch(() => {
-        if (active) setHasSubscription(false);
+      .catch((error: unknown) => {
+        if (active) {
+          setHasSubscription(null);
+          setSubscriptionError(getApiErrorMessage(error, "Unable to verify your subscription status."));
+        }
       });
     void fetchProviderWorkspace()
       .then((loadedWorkspace) => {
@@ -216,13 +329,9 @@ export default function ProviderDashboard() {
         if (!active) return;
         if (axios.isAxiosError(error) && error.response?.status === 401) {
           clearAuthSession({ access: "providerToken", refresh: "providerRefreshToken" });
+          localStorage.removeItem("providerIdentity");
+          toast.error("Your provider session expired. Please sign in again.");
           navigate("/provider/login", { replace: true });
-          return;
-        }
-        if (axios.isAxiosError(error) && error.response?.status === 402) {
-          setHasSubscription(false);
-          setActiveSection("subscription");
-          setWorkspaceLoadError("");
           return;
         }
         setWorkspaceLoadError(getApiErrorMessage(error, "Unable to load your daycare workspace."));
@@ -253,6 +362,49 @@ export default function ProviderDashboard() {
     toast.success("You have signed out.");
     navigate("/provider/login", { replace: true });
   };
+
+  const refreshSubscriptionStatus = async () => {
+    setBillingRefreshing(true);
+    try {
+      const billing = await fetchProviderSubscription();
+      setHasSubscription(billing.hasAccess);
+      if (billing.hasAccess) setSubscriptionActivationPending(false);
+      setSubscriptionError("");
+    } catch (error: unknown) {
+      const message = getApiErrorMessage(error, "Unable to verify your subscription status.");
+      setHasSubscription(null);
+      setSubscriptionError(message);
+      toast.error(message);
+    } finally {
+      setBillingRefreshing(false);
+    }
+  };
+
+  const handleSubscriptionChange = useCallback((
+    hasAccess: boolean,
+    activationPending: boolean,
+  ) => {
+    setHasSubscription(hasAccess);
+    setSubscriptionActivationPending(activationPending);
+    setSubscriptionError("");
+  }, []);
+
+  const startSubscriptionCheckout = async () => {
+    setCheckoutPending(true);
+    try {
+      window.location.assign(await createProviderCheckoutSession());
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Unable to start subscription checkout."));
+      setCheckoutPending(false);
+    }
+  };
+
+  const canOperate = Boolean(
+    workspace &&
+    workspace.centreStatus.isActive &&
+    workspace.centreStatus.status === "approved" &&
+    hasSubscription,
+  );
 
   const changeBookingStatus = async (
     id: string,
@@ -333,6 +485,13 @@ export default function ProviderDashboard() {
                   scheduleForm.reset({ availableDays: loadedWorkspace.availableDays });
                 })
                 .catch((error: unknown) => {
+                  if (axios.isAxiosError(error) && error.response?.status === 401) {
+                    clearAuthSession({ access: "providerToken", refresh: "providerRefreshToken" });
+                    localStorage.removeItem("providerIdentity");
+                    toast.error("Your provider session expired. Please sign in again.");
+                    navigate("/provider/login", { replace: true });
+                    return;
+                  }
                   setWorkspaceLoadError(getApiErrorMessage(error, "Unable to load your daycare workspace."));
                   toast.error(getApiErrorMessage(error, "Unable to load your daycare workspace."));
                 });
@@ -496,9 +655,10 @@ export default function ProviderDashboard() {
   };
 
   const sectionTitle = navigation.find((item) => item.id === activeSection)?.label ?? "Overview";
-  const visibleNavigation = hasSubscription
-    ? navigation
-    : navigation.filter((item) => item.id === "subscription");
+  const visibleNavigation = navigation;
+  const centreStatusLabel = workspace.centreStatus.isActive
+    ? centreStatusLabels[workspace.centreStatus.status]
+    : "Inactive";
 
   return (
     <div className="min-h-screen bg-[#f5f8f6] text-[#26384b]">
@@ -555,8 +715,12 @@ export default function ProviderDashboard() {
               <h1 className="truncate text-lg font-extrabold sm:mt-1 sm:text-xl">{sectionTitle}</h1>
             </div>
             <div className="flex items-center gap-2">
-              <span className="hidden items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 sm:flex">
-                <ShieldCheck size={15} /> Approved centre
+              <span className={`hidden items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold sm:flex ${
+                workspace.centreStatus.status === "approved" && workspace.centreStatus.isActive
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-amber-50 text-amber-800"
+              }`}>
+                <ShieldCheck size={15} /> {centreStatusLabel}
               </span>
               <button
                 type="button"
@@ -585,16 +749,36 @@ export default function ProviderDashboard() {
         </header>
 
         <main className="mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe7dc] bg-[#eaf6f0] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 ${
+            workspace.centreStatus.status === "approved" && workspace.centreStatus.isActive
+              ? "border-[#cfe7dc] bg-[#eaf6f0]"
+              : "border-amber-200 bg-amber-50"
+          }`}>
             <div className="flex items-start gap-3">
               <span className="mt-0.5 rounded-lg bg-white p-2 text-[#278a70]"><ShieldCheck size={18} /></span>
               <div>
-                <p className="text-sm font-bold text-[#276b56]">Approved daycare workspace</p>
-                <p className="mt-1 text-xs leading-5 text-[#53796d]">Profile, caregiver listings and family booking requests are saved to your account.</p>
+                <p className="text-sm font-bold text-[#276b56]">{centreStatusLabel}</p>
+                <p className="mt-1 text-xs leading-5 text-[#53796d]">
+                  Your basic dashboard and centre information are available. Centre approval and subscription status are managed separately.
+                </p>
+                {workspace.centreStatus.reviewNotes && (
+                  <p className="mt-1 text-xs leading-5 text-[#53796d]">
+                    <span className="font-semibold">Admin feedback:</span> {workspace.centreStatus.reviewNotes}
+                  </p>
+                )}
               </div>
             </div>
-            <span className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#278a70]">Connected</span>
+            <span className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#278a70]">
+              Subscription: {hasSubscription === null
+                ? subscriptionError ? "Unable to verify" : "Checking…"
+                : hasSubscription ? "Active" : subscriptionActivationPending ? "Activation pending" : "Required for operations"}
+            </span>
           </div>
+          {subscriptionError && (
+            <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {subscriptionError} Paid actions remain locked until subscription status can be verified.
+            </p>
+          )}
 
           {activeSection === "overview" && (
             <>
@@ -682,7 +866,19 @@ export default function ProviderDashboard() {
           )}
 
           {activeSection === "centre" && (
-            <section className="rounded-2xl border border-[#e5ece8] bg-white p-5 shadow-sm sm:p-7">
+            <section className="space-y-4">
+              <OperationalAccessNotice
+                centreStatus={workspace.centreStatus}
+                hasSubscription={hasSubscription}
+                activationPending={subscriptionActivationPending}
+                subscriptionError={subscriptionError}
+                billingRefreshing={billingRefreshing}
+                checkoutPending={checkoutPending}
+                onSubscribe={() => void startSubscriptionCheckout()}
+                onRetryBilling={() => void refreshSubscriptionStatus()}
+              />
+              <fieldset disabled={!canOperate} className="m-0 min-w-0 border-0 p-0 disabled:opacity-75">
+                <section className="rounded-2xl border border-[#e5ece8] bg-white p-5 shadow-sm sm:p-7">
               <div className="mb-6">
                 <h2 className="text-xl font-extrabold">Centre details</h2>
                 <p className="mt-1 text-sm text-slate-500">Keep your centre contact, address and care information up to date.</p>
@@ -805,11 +1001,24 @@ export default function ProviderDashboard() {
                   {workspace.photos.length === 0 && <p className="col-span-full rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No photos added yet.</p>}
                 </div>
               </div>
+                </section>
+              </fieldset>
             </section>
           )}
 
           {activeSection === "team" && (
             <section className="space-y-5">
+              <OperationalAccessNotice
+                centreStatus={workspace.centreStatus}
+                hasSubscription={hasSubscription}
+                activationPending={subscriptionActivationPending}
+                subscriptionError={subscriptionError}
+                billingRefreshing={billingRefreshing}
+                checkoutPending={checkoutPending}
+                onSubscribe={() => void startSubscriptionCheckout()}
+                onRetryBilling={() => void refreshSubscriptionStatus()}
+              />
+              <fieldset disabled={!canOperate} className="m-0 min-w-0 space-y-5 border-0 p-0 disabled:opacity-75">
               <div className="rounded-2xl border border-[#e5ece8] bg-white p-5 shadow-sm sm:p-6">
                 <h2 className="text-xl font-extrabold">Caregiver profiles</h2>
                 <p className="mt-1 text-sm text-slate-500">Add the care team families will meet at your centre.</p>
@@ -869,11 +1078,24 @@ export default function ProviderDashboard() {
                 pageCount={Math.ceil(workspace.caregivers.length / pageSizeByList.caregivers)}
                 onPageChange={(page) => changeListPage("caregivers", page)}
               />
+              </fieldset>
             </section>
           )}
 
           {activeSection === "availability" && (
-            <section className="grid gap-5 xl:grid-cols-2">
+            <section className="space-y-4">
+              <OperationalAccessNotice
+                centreStatus={workspace.centreStatus}
+                hasSubscription={hasSubscription}
+                activationPending={subscriptionActivationPending}
+                subscriptionError={subscriptionError}
+                billingRefreshing={billingRefreshing}
+                checkoutPending={checkoutPending}
+                onSubscribe={() => void startSubscriptionCheckout()}
+                onRetryBilling={() => void refreshSubscriptionStatus()}
+              />
+              <fieldset disabled={!canOperate} className="m-0 min-w-0 border-0 p-0 disabled:opacity-75">
+              <div className="grid gap-5 xl:grid-cols-2">
               <article className="rounded-2xl border border-[#e5ece8] bg-white p-5 shadow-sm sm:p-6">
                 <h2 className="text-xl font-extrabold">Opening schedule</h2>
                 <p className="mt-1 text-sm text-slate-500">Set the days and hours your centre is open.</p>
@@ -974,11 +1196,24 @@ export default function ProviderDashboard() {
                   <button type="submit" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-[#278a70] px-4 text-sm font-bold text-white hover:bg-[#20785f]"><Save size={16} /> Save prices</button>
                 </form>
               </article>
+              </div>
+              </fieldset>
             </section>
           )}
 
           {activeSection === "bookings" && (
-            <section className="overflow-hidden rounded-2xl border border-[#e5ece8] bg-white shadow-sm">
+            <section className="space-y-4">
+              <OperationalAccessNotice
+                centreStatus={workspace.centreStatus}
+                hasSubscription={hasSubscription}
+                activationPending={subscriptionActivationPending}
+                subscriptionError={subscriptionError}
+                billingRefreshing={billingRefreshing}
+                checkoutPending={checkoutPending}
+                onSubscribe={() => void startSubscriptionCheckout()}
+                onRetryBilling={() => void refreshSubscriptionStatus()}
+              />
+              <fieldset disabled={!canOperate} className="m-0 min-w-0 overflow-hidden rounded-2xl border border-[#e5ece8] bg-white p-0 shadow-sm disabled:opacity-75">
               <div className="flex flex-col gap-2 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div>
                   <h2 className="text-xl font-extrabold">Booking requests</h2>
@@ -1049,6 +1284,7 @@ export default function ProviderDashboard() {
                 pageCount={Math.ceil(workspace.bookings.length / pageSizeByList.bookings)}
                 onPageChange={(page) => changeListPage("bookings", page)}
               />
+              </fieldset>
             </section>
           )}
 
@@ -1080,7 +1316,9 @@ export default function ProviderDashboard() {
             </section>
           )}
 
-          {activeSection === "subscription" && <ProviderSubscription />}
+          {activeSection === "subscription" && (
+            <ProviderSubscription onSubscriptionChange={handleSubscriptionChange} />
+          )}
         </main>
       </div>
     </div>

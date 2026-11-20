@@ -31,6 +31,8 @@ Stripe subscription checkout uses the configured recurring Price ID. Keep the St
 
 The Stripe secret key must match the test or live mode used by the configured Product and Price IDs. This integration uses Stripe-hosted Checkout and does not require the publishable key.
 
+The configured recurring price must be ₹499 INR per month. Providers can access the dashboard and read-only workspace without a subscription. Profile, caregiver, schedule, photo, booking-decision, and camera-access changes require both an admin-approved active centre and an active subscription; subscription state is verified from backend records updated by Stripe webhooks. `STRIPE_PAST_DUE_GRACE_DAYS` is optional and defaults to `0`.
+
 ### Parent registration and email verification
 
 The registration endpoints are mounted under `/api/parent`:

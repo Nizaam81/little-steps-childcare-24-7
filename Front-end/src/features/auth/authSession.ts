@@ -48,6 +48,7 @@ export function installAuthInterceptors(
           .post<{ accessToken: string; refreshToken: string }>(
             `${apiBaseUrl}/api/auth/refresh`,
             { refreshToken },
+            { timeout: 15_000 },
           )
           .then(({ data }) => {
             if (!data.accessToken || !data.refreshToken) {
@@ -96,6 +97,7 @@ function getSessionClient(keys: SessionKeys): AxiosInstance {
   const client = axios.create({
     baseURL: `${apiBaseUrl}/api/auth`,
     headers: { "Content-Type": "application/json" },
+    timeout: 15_000,
   });
   installAuthInterceptors(client, keys);
   sessionClients.set(keys.access, client);
